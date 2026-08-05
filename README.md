@@ -42,4 +42,5 @@ src/
   ui/        React コンポーネント。描画だけを担当する
 ```
 
-設計と進行状況は [PLAN.md](./PLAN.md) を参照。
+設計と進行状況は [PLAN.md](./PLAN.md)、開発の作法は [CLAUDE.md](./CLAUDE.md)、
+ テキストの文体は [src/scenario/VOICE.md](./src/scenario/VOICE.md) を参照。
