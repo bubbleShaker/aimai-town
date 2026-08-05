@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
-import { canMove, collectedFragments, createInitialState, reduce } from './state';
+import {
+  canMove,
+  collectedFragments,
+  createInitialState,
+  findPlace,
+  pendingGrants,
+  reduce,
+  roads,
+} from './state';
 
 describe('createInitialState', () => {
   it('世界の開始地点から始まり、断片は何も持っていない', () => {
@@ -28,7 +36,7 @@ describe('MOVE', () => {
   it('存在しない場所へは歩けない', () => {
     const before = createInitialState(world);
     expect(reduce(before, { type: 'MOVE', to: 'nowhere' }, world)).toBe(before);
-    expect(canMove(world, 'square', 'nowhere')).toBe(false);
+    expect(canMove(world, before, 'nowhere')).toBe(false);
   });
 });
 
@@ -66,7 +74,45 @@ describe('collectedFragments', () => {
   });
 });
 
+describe('pendingGrants', () => {
+  it('これから得る断片だけを返す', () => {
+    const s = createInitialState(world);
+    expect(pendingGrants(world, s, 't-child').map((f) => f.id)).toEqual(['f-approval']);
+  });
+
+  it('すでに持っている断片は含まない', () => {
+    const s = reduce(createInitialState(world), { type: 'FINISH_TALK', talkId: 't-child' }, world);
+    expect(pendingGrants(world, s, 't-child')).toEqual([]);
+  });
+
+  it('その場にいない相手の断片は覗けない', () => {
+    expect(pendingGrants(world, createInitialState(world), 't-master')).toEqual([]);
+  });
+});
+
+describe('roads', () => {
+  it('双方向の道を一本に畳む', () => {
+    const list = roads(world);
+    const keys = list.map(([a, b]) => [a, b].sort().join('|'));
+    expect(new Set(keys).size).toBe(list.length);
+    expect(list.length).toBe(2);
+  });
+});
+
 describe('世界の整合性', () => {
+  it('開始地点が存在する', () => {
+    expect(findPlace(world, world.start)).toBeDefined();
+  });
+
+  it('場所・断片・対話の id に重複が無い', () => {
+    const ids = [
+      ...world.places.map((p) => p.id),
+      ...world.fragments.map((f) => f.id),
+      ...world.places.flatMap((p) => p.talks.map((t) => t.id)),
+    ];
+    expect(new Set(ids).size, `重複した id がある: ${ids.join(', ')}`).toBe(ids.length);
+  });
+
   it('対話が与える断片は、すべて定義済みである', () => {
     const known = new Set(world.fragments.map((f) => f.id));
     for (const place of world.places) {

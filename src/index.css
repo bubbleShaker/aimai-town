@@ -24,6 +24,25 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * 文字送りのために同じ場所を連打するので、
+ * iOS のダブルタップ拡大と、意図しない文字列選択を抑える。
+ * 読み返す対象である本文（.line）だけは選択できるままにしておく。
+ */
+.story,
+.story-next,
+.button,
+.place {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.line {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 body {
   margin: 0;
   background: var(--fog-0);
@@ -146,9 +165,17 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 0.85em;
   min-height: 0;
+}
+
+/*
+ * 行が少ないうちは下端に貼りつけ、増えたら上へ伸ばす。
+ * justify-content: flex-end だと、あふれた先頭側がスクロールで
+ * たどれなくなる（切り落とされる）ため、先頭の margin-top で寄せている。
+ */
+.story-lines > :first-child {
+  margin-top: auto;
 }
 
 .line {
@@ -185,12 +212,16 @@ body {
   to { opacity: 1; transform: none; }
 }
 
-.story-hint {
-  margin: 0;
-  text-align: right;
+.story-next {
+  align-self: flex-end;
+  padding: 0.4em 0.2em;
+  background: none;
+  border: none;
+  font: inherit;
   font-size: 0.75rem;
   letter-spacing: 0.2em;
   color: var(--lamp-dim);
+  cursor: pointer;
 }
 
 /* ── 行動 ────────────────────────────── */
@@ -253,6 +284,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 断片が何枚あっても「閉じる」に手が届くよう、スクロールはこの中だけ */
+.note-body {
+  flex: 1;
   overflow-y: auto;
   min-height: 0;
 }
@@ -278,7 +316,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
-  flex: 1;
 }
 
 .note-item {

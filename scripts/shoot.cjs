@@ -20,7 +20,7 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/';
     for (let i = 0; i < 30; i++) {
       const rest = await page.locator('.story').count();
       if (rest === 0) return;
-      const hint = await page.locator('.story-hint').innerText();
+      const hint = await page.locator('.story-next').innerText();
       if (stopBefore && hint.includes('もどる')) return;
       await tap('.story');
     }

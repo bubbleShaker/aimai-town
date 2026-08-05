@@ -1,12 +1,12 @@
-import type { World } from '../scenario/types';
+import type { PlaceId, World } from '../scenario/types';
 import type { GameState } from '../engine/state';
-import { canMove } from '../engine/state';
+import { canMove, findPlace, roads } from '../engine/state';
 
 interface Props {
   world: World;
   state: GameState;
   /** 移動できないときは null を渡して、マップ全体を触れなくする（対話中など） */
-  onMove: ((to: string) => void) | null;
+  onMove: ((to: PlaceId) => void) | null;
 }
 
 /**
@@ -16,14 +16,13 @@ interface Props {
  * そのまま「コンテナの何 %」を意味するようになり、DOM 側の left/top の % と一致する。
  */
 export function MapView({ world, state, onMove }: Props) {
-  const links = uniqueLinks(world);
-
   return (
     <div className="map">
       <svg className="map-roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {links.map(([a, b]) => {
-          const from = world.places.find((p) => p.id === a)!;
-          const to = world.places.find((p) => p.id === b)!;
+        {roads(world).map(([a, b]) => {
+          const from = findPlace(world, a);
+          const to = findPlace(world, b);
+          if (!from || !to) return null;
           return (
             <line
               key={`${a}-${b}`}
@@ -40,7 +39,7 @@ export function MapView({ world, state, onMove }: Props) {
 
       {world.places.map((place) => {
         const here = place.id === state.currentPlaceId;
-        const reachable = onMove !== null && canMove(world, state.currentPlaceId, place.id);
+        const reachable = onMove !== null && canMove(world, state, place.id);
         const visited = state.visitedPlaceIds.includes(place.id);
         return (
           <button
@@ -58,19 +57,4 @@ export function MapView({ world, state, onMove }: Props) {
       })}
     </div>
   );
-}
-
-/** 双方向の道を一本ずつに畳む */
-function uniqueLinks(world: World): [string, string][] {
-  const seen = new Set<string>();
-  const result: [string, string][] = [];
-  for (const place of world.places) {
-    for (const to of place.links) {
-      const key = [place.id, to].sort().join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      result.push([place.id, to]);
-    }
-  }
-  return result;
 }

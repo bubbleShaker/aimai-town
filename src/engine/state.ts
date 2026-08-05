@@ -1,4 +1,4 @@
-import type { Fragment, FragmentId, Place, PlaceId, TalkId, World } from '../scenario/types';
+import type { Fragment, FragmentId, Place, PlaceId, Talk, TalkId, World } from '../scenario/types';
 
 /**
  * ゲームの進行状態。
@@ -32,9 +32,18 @@ export function findPlace(world: World, id: PlaceId): Place | undefined {
   return world.places.find((p) => p.id === id);
 }
 
-/** 隣接していない場所へは歩けない。UI 側の不備でルールが破られないよう、ここで判定する */
-export function canMove(world: World, from: PlaceId, to: PlaceId): boolean {
-  const place = findPlace(world, from);
+/** 今いる場所で話しかけられる相手だけを引く */
+export function findTalk(world: World, state: GameState, talkId: TalkId): Talk | undefined {
+  return findPlace(world, state.currentPlaceId)?.talks.find((t) => t.id === talkId);
+}
+
+/**
+ * そこへ歩けるか。UI 側の不備でルールが破られないよう、判定はここに一本化する。
+ * 状態そのものを受け取る形にしてあるのは、扉の解錠など「持ち物によって通れる道が変わる」
+ * 条件を、UI を触らずにこの関数の中だけで足せるようにするため。
+ */
+export function canMove(world: World, state: GameState, to: PlaceId): boolean {
+  const place = findPlace(world, state.currentPlaceId);
   if (!place) return false;
   if (!findPlace(world, to)) return false;
   return place.links.includes(to);
@@ -47,7 +56,7 @@ export function canMove(world: World, from: PlaceId, to: PlaceId): boolean {
 export function reduce(state: GameState, action: GameAction, world: World): GameState {
   switch (action.type) {
     case 'MOVE': {
-      if (!canMove(world, state.currentPlaceId, action.to)) return state;
+      if (!canMove(world, state, action.to)) return state;
       return {
         ...state,
         currentPlaceId: action.to,
@@ -55,14 +64,13 @@ export function reduce(state: GameState, action: GameAction, world: World): Game
       };
     }
     case 'FINISH_TALK': {
-      const place = findPlace(world, state.currentPlaceId);
-      const talk = place?.talks.find((t) => t.id === action.talkId);
+      const talk = findTalk(world, state, action.talkId);
       // その場に無い対話は成立しない
       if (!talk) return state;
       return {
         ...state,
         finishedTalkIds: addUnique(state.finishedTalkIds, talk.id),
-        fragmentIds: talk.grants.reduce(addUnique, state.fragmentIds),
+        fragmentIds: talk.grants.reduce((acc, id) => addUnique(acc, id), state.fragmentIds),
       };
     }
     default:
@@ -70,11 +78,40 @@ export function reduce(state: GameState, action: GameAction, world: World): Game
   }
 }
 
+/** その対話でこれから新しく手に入る断片。すでに持っているものは除く */
+export function pendingGrants(world: World, state: GameState, talkId: TalkId): Fragment[] {
+  const talk = findTalk(world, state, talkId);
+  if (!talk) return [];
+  return talk.grants
+    .filter((id) => !state.fragmentIds.includes(id))
+    .map((id) => findFragment(world, id))
+    .filter((f): f is Fragment => f !== undefined);
+}
+
 /** 集めた断片を、獲得順に実体で取り出す */
 export function collectedFragments(world: World, state: GameState): Fragment[] {
   return state.fragmentIds
-    .map((id) => world.fragments.find((f) => f.id === id))
+    .map((id) => findFragment(world, id))
     .filter((f): f is Fragment => f !== undefined);
+}
+
+/** 双方向の道を一本ずつに畳んだもの。マップを描くための導出値 */
+export function roads(world: World): [PlaceId, PlaceId][] {
+  const seen = new Set<string>();
+  const result: [PlaceId, PlaceId][] = [];
+  for (const place of world.places) {
+    for (const to of place.links) {
+      const key = [place.id, to].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push([place.id, to]);
+    }
+  }
+  return result;
+}
+
+function findFragment(world: World, id: FragmentId): Fragment | undefined {
+  return world.fragments.find((f) => f.id === id);
 }
 
 /** 既に含まれていれば元の配列をそのまま返す（無駄な再描画を避けるため参照を変えない） */

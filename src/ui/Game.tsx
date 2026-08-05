@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { world } from '../scenario';
 import type { PlaceId, TalkId } from '../scenario/types';
-import { collectedFragments, createInitialState, findPlace, reduce } from '../engine/state';
+import {
+  collectedFragments,
+  createInitialState,
+  findPlace,
+  findTalk,
+  pendingGrants,
+  reduce,
+} from '../engine/state';
 import type { GameState } from '../engine/state';
 import { MapView } from './MapView';
 import { NoteView } from './NoteView';
@@ -28,22 +35,24 @@ export function Game() {
   const place = findPlace(world, state.currentPlaceId)!;
 
   function move(to: PlaceId) {
-    const firstVisit = !state.visitedPlaceIds.includes(to);
-    setState((s) => reduce(s, { type: 'MOVE', to }, world));
-    const next = findPlace(world, to)!;
+    // 先に engine へ問い合わせ、実際に動けたときだけ画面を切り替える
+    const moved = reduce(state, { type: 'MOVE', to }, world);
+    if (moved === state) return;
+    setState(moved);
+    const next = findPlace(world, moved.currentPlaceId)!;
     // 初めての場所だけ、到着の描写を読ませる
-    setScene(
-      firstVisit ? { kind: 'reading', lines: next.arrival, shown: 1 } : { kind: 'idle' },
-    );
+    const firstVisit = !state.visitedPlaceIds.includes(to);
+    setScene(firstVisit ? { kind: 'reading', lines: next.arrival, shown: 1 } : { kind: 'idle' });
   }
 
   function startTalk(talkId: TalkId) {
-    const talk = place.talks.find((t) => t.id === talkId);
+    const talk = findTalk(world, state, talkId);
     if (!talk) return;
-    // 対話の末尾に、得られる断片を一行ずつ足して見せる
-    const gained: ShownLine[] = talk.grants
-      .filter((id) => !state.fragmentIds.includes(id))
-      .map((id) => ({ text: world.fragments.find((f) => f.id === id)!.text, fragment: true }));
+    // 対話の末尾に、これから得る断片を一行ずつ足して見せる
+    const gained: ShownLine[] = pendingGrants(world, state, talkId).map((f) => ({
+      text: f.text,
+      fragment: true,
+    }));
     setScene({ kind: 'reading', lines: [...talk.lines, ...gained], shown: 1, talkId });
   }
 

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 /** 画面に流す一行。fragment が立っている行は断片の獲得を示す */
 export interface ShownLine {
   speaker?: string;
@@ -17,18 +19,18 @@ interface Props {
  * 全文がその場に残るので、言葉を読み返しながら考えられる。
  */
 export function StoryView({ lines, shown, onAdvance }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const done = shown >= lines.length;
+
+  // 行が増えるたび最下部へ寄せる。上にあふれた分は指でさかのぼれる
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [shown]);
+
   return (
-    <div
-      className="story"
-      onClick={onAdvance}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onAdvance();
-      }}
-    >
-      <div className="story-lines">
+    <div className="story" onClick={onAdvance}>
+      <div className="story-lines" ref={scrollRef}>
         {lines.slice(0, shown).map((line, i) => (
           <p
             key={i}
@@ -41,7 +43,17 @@ export function StoryView({ lines, shown, onAdvance }: Props) {
           </p>
         ))}
       </div>
-      <p className="story-hint">{done ? '▼ もどる' : '▼ つづける'}</p>
+      {/* 画面のどこを触っても進むが、操作の主体はこのボタンとして示す。
+          親にも onClick があるので、二重に進まないよう伝播を止める */}
+      <button
+        className="story-next"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdvance();
+        }}
+      >
+        {done ? '▼ もどる' : '▼ つづける'}
+      </button>
     </div>
   );
 }
