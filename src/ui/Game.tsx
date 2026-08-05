@@ -1,15 +1,21 @@
 import { useState } from 'react';
 import { world } from '../scenario';
-import type { PlaceId, TalkId } from '../scenario/types';
+import type { FragmentId, GateId, PlaceId, TalkId } from '../scenario/types';
 import {
   collectedFragments,
   createInitialState,
+  findFragment,
+  findGate,
   findPlace,
   findTalk,
+  gateResponse,
+  gatesAhead,
+  offerableFragments,
   pendingGrants,
   reduce,
 } from '../engine/state';
 import type { GameState } from '../engine/state';
+import { GateView } from './GateView';
 import { MapView } from './MapView';
 import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
@@ -21,8 +27,20 @@ import type { ShownLine } from './StoryView';
  */
 type Scene =
   | { kind: 'idle' }
-  | { kind: 'reading'; lines: ShownLine[]; shown: number; talkId?: TalkId }
+  | { kind: 'reading'; lines: ShownLine[]; shown: number; then: AfterReading }
+  | { kind: 'choosing'; gateId: GateId }
   | { kind: 'note' };
+
+/**
+ * 読み終えたときに何が起きるか。
+ * 手続きではなくデータとして持たせておくと、扉やエンディングが増えても
+ * 「読む」処理そのものは変えずに済む。
+ */
+type AfterReading =
+  | { kind: 'idle' }
+  | { kind: 'finishTalk'; talkId: TalkId }
+  | { kind: 'choosing'; gateId: GateId }
+  | { kind: 'openGate'; gateId: GateId; fragmentId: FragmentId };
 
 export function Game() {
   const [state, setState] = useState<GameState>(() => createInitialState(world));
@@ -30,19 +48,25 @@ export function Game() {
     kind: 'reading',
     lines: findPlace(world, world.start)!.arrival,
     shown: 1,
+    then: { kind: 'idle' },
   }));
 
   const place = findPlace(world, state.currentPlaceId)!;
+  const pendingGates = gatesAhead(world, state);
+
+  function read(lines: ShownLine[], then: AfterReading = { kind: 'idle' }) {
+    setScene({ kind: 'reading', lines, shown: 1, then });
+  }
 
   function move(to: PlaceId) {
     // 先に engine へ問い合わせ、実際に動けたときだけ画面を切り替える
     const moved = reduce(state, { type: 'MOVE', to }, world);
     if (moved === state) return;
     setState(moved);
-    const next = findPlace(world, moved.currentPlaceId)!;
-    // 初めての場所だけ、到着の描写を読ませる
     const firstVisit = !state.visitedPlaceIds.includes(to);
-    setScene(firstVisit ? { kind: 'reading', lines: next.arrival, shown: 1 } : { kind: 'idle' });
+    // 初めての場所だけ、到着の描写を読ませる
+    if (firstVisit) read(findPlace(world, to)!.arrival);
+    else setScene({ kind: 'idle' });
   }
 
   function startTalk(talkId: TalkId) {
@@ -53,7 +77,19 @@ export function Game() {
       text: f.text,
       fragment: true,
     }));
-    setScene({ kind: 'reading', lines: [...talk.lines, ...gained], shown: 1, talkId });
+    read([...talk.lines, ...gained], { kind: 'finishTalk', talkId });
+  }
+
+  function approachGate(gateId: GateId) {
+    const gate = findGate(world, gateId);
+    if (!gate) return;
+    read(gate.prologue, { kind: 'choosing', gateId });
+  }
+
+  function offer(gateId: GateId, fragmentId: FragmentId) {
+    const gate = findGate(world, gateId);
+    if (!gate) return;
+    read(gateResponse(gate, fragmentId).lines, { kind: 'openGate', gateId, fragmentId });
   }
 
   function advance() {
@@ -62,13 +98,28 @@ export function Game() {
       setScene({ ...scene, shown: scene.shown + 1 });
       return;
     }
-    // 読み終えた時点で、はじめて断片が身につく
-    if (scene.talkId) {
-      const talkId = scene.talkId;
-      setState((s) => reduce(s, { type: 'FINISH_TALK', talkId }, world));
+    // 読み終えた時点ではじめて、断片が身につき、扉が開く
+    const then = scene.then;
+    switch (then.kind) {
+      case 'finishTalk':
+        setState((s) => reduce(s, { type: 'FINISH_TALK', talkId: then.talkId }, world));
+        setScene({ kind: 'idle' });
+        break;
+      case 'openGate':
+        setState((s) =>
+          reduce(s, { type: 'OPEN_GATE', gateId: then.gateId, fragmentId: then.fragmentId }, world),
+        );
+        setScene({ kind: 'idle' });
+        break;
+      case 'choosing':
+        setScene({ kind: 'choosing', gateId: then.gateId });
+        break;
+      default:
+        setScene({ kind: 'idle' });
     }
-    setScene({ kind: 'idle' });
   }
+
+  const choosingGate = scene.kind === 'choosing' ? findGate(world, scene.gateId) : undefined;
 
   return (
     <div className="game">
@@ -88,11 +139,32 @@ export function Game() {
                 {state.finishedTalkIds.includes(talk.id) && <span className="button-note">（再）</span>}
               </button>
             ))}
+            {pendingGates.map((gate) => (
+              <button
+                key={gate.id}
+                className="button is-gate"
+                onClick={() => approachGate(gate.id)}
+              >
+                {gate.name}の前に立つ
+              </button>
+            ))}
             <button className="button is-quiet" onClick={() => setScene({ kind: 'note' })}>
               思索のノート（{state.fragmentIds.length}）
             </button>
             <p className="actions-hint">霧の中の灯をえらぶと、そこへ歩く</p>
           </div>
+        )}
+
+        {choosingGate && (
+          <GateView
+            gate={choosingGate}
+            tension={choosingGate.tension
+              .map((id) => findFragment(world, id))
+              .filter((f) => f !== undefined)}
+            hand={offerableFragments(world, state)}
+            onOffer={(fragmentId) => offer(choosingGate.id, fragmentId)}
+            onLeave={() => setScene({ kind: 'idle' })}
+          />
         )}
 
         {scene.kind === 'note' && (

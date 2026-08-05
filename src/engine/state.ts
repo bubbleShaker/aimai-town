@@ -1,4 +1,15 @@
-import type { Fragment, FragmentId, Place, PlaceId, Talk, TalkId, World } from '../scenario/types';
+import type {
+  Fragment,
+  FragmentId,
+  Gate,
+  GateId,
+  GateResponse,
+  Place,
+  PlaceId,
+  Talk,
+  TalkId,
+  World,
+} from '../scenario/types';
 
 /**
  * ゲームの進行状態。
@@ -13,11 +24,25 @@ export interface GameState {
   fragmentIds: FragmentId[];
   /** 一度終えた対話 */
   finishedTalkIds: TalkId[];
+  /** 開いた扉 */
+  openedGateIds: GateId[];
+  /**
+   * 扉に何を差し出したかの記録。
+   * 集計した軸の値ではなく選択そのものを持つ。
+   * 軸の重みを後から変えても、記録した選択の意味が変わらないようにするため。
+   */
+  gateChoices: GateChoice[];
+}
+
+export interface GateChoice {
+  gateId: GateId;
+  fragmentId: FragmentId;
 }
 
 export type GameAction =
   | { type: 'MOVE'; to: PlaceId }
-  | { type: 'FINISH_TALK'; talkId: TalkId };
+  | { type: 'FINISH_TALK'; talkId: TalkId }
+  | { type: 'OPEN_GATE'; gateId: GateId; fragmentId: FragmentId };
 
 export function createInitialState(world: World): GameState {
   return {
@@ -25,6 +50,8 @@ export function createInitialState(world: World): GameState {
     visitedPlaceIds: [world.start],
     fragmentIds: [],
     finishedTalkIds: [],
+    openedGateIds: [],
+    gateChoices: [],
   };
 }
 
@@ -37,16 +64,45 @@ export function findTalk(world: World, state: GameState, talkId: TalkId): Talk |
   return findPlace(world, state.currentPlaceId)?.talks.find((t) => t.id === talkId);
 }
 
+export function findGate(world: World, id: GateId): Gate | undefined {
+  return world.gates.find((g) => g.id === id);
+}
+
+/** その場所へ入るために開かねばならない扉 */
+export function gateGuarding(world: World, placeId: PlaceId): Gate | undefined {
+  return world.gates.find((g) => g.beyond === placeId);
+}
+
+/** 今いる場所の目の前にある、まだ開いていない扉 */
+export function gatesAhead(world: World, state: GameState): Gate[] {
+  const place = findPlace(world, state.currentPlaceId);
+  if (!place) return [];
+  return place.links
+    .map((to) => gateGuarding(world, to))
+    .filter((g): g is Gate => g !== undefined && !state.openedGateIds.includes(g.id));
+}
+
 /**
  * そこへ歩けるか。UI 側の不備でルールが破られないよう、判定はここに一本化する。
- * 状態そのものを受け取る形にしてあるのは、扉の解錠など「持ち物によって通れる道が変わる」
- * 条件を、UI を触らずにこの関数の中だけで足せるようにするため。
+ * 扉の向こうへは、その扉を開くまで行けない。
  */
 export function canMove(world: World, state: GameState, to: PlaceId): boolean {
   const place = findPlace(world, state.currentPlaceId);
   if (!place) return false;
   if (!findPlace(world, to)) return false;
-  return place.links.includes(to);
+  if (!place.links.includes(to)) return false;
+  const gate = gateGuarding(world, to);
+  return !gate || state.openedGateIds.includes(gate.id);
+}
+
+/** その扉に差し出せる断片。手持ちがそのまま候補になる */
+export function offerableFragments(world: World, state: GameState): Fragment[] {
+  return collectedFragments(world, state);
+}
+
+/** 差し出された断片に対して扉が返すもの。書かれていない断片には共通の返答を使う */
+export function gateResponse(gate: Gate, fragmentId: FragmentId): GateResponse {
+  return gate.responses[fragmentId] ?? gate.fallback;
 }
 
 /**
@@ -71,6 +127,18 @@ export function reduce(state: GameState, action: GameAction, world: World): Game
         ...state,
         finishedTalkIds: addUnique(state.finishedTalkIds, talk.id),
         fragmentIds: talk.grants.reduce((acc, id) => addUnique(acc, id), state.fragmentIds),
+      };
+    }
+    case 'OPEN_GATE': {
+      const gate = gatesAhead(world, state).find((g) => g.id === action.gateId);
+      // 目の前に無い扉、すでに開いた扉には触れない
+      if (!gate) return state;
+      // 持っていない断片は差し出せない
+      if (!state.fragmentIds.includes(action.fragmentId)) return state;
+      return {
+        ...state,
+        openedGateIds: addUnique(state.openedGateIds, gate.id),
+        gateChoices: [...state.gateChoices, { gateId: gate.id, fragmentId: action.fragmentId }],
       };
     }
     default:
@@ -110,7 +178,7 @@ export function roads(world: World): [PlaceId, PlaceId][] {
   return result;
 }
 
-function findFragment(world: World, id: FragmentId): Fragment | undefined {
+export function findFragment(world: World, id: FragmentId): Fragment | undefined {
   return world.fragments.find((f) => f.id === id);
 }
 

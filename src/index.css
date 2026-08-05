@@ -118,6 +118,13 @@ body {
   cursor: pointer;
 }
 
+/* 閉じた扉の向こう。灯は点らず、閉ざされた枠だけが見えている */
+.place.is-locked .place-dot {
+  background: none;
+  border: 1px solid #4a5462;
+  box-shadow: none;
+}
+
 .place.is-reachable .place-dot {
   background: var(--lamp-dim);
   box-shadow: 0 0 8px 2px rgba(232, 185, 106, 0.25);
@@ -335,6 +342,95 @@ body {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   color: var(--ink-dim);
+}
+
+/* ── 扉 ────────────────────────────── */
+
+.gate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.gate-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: normal;
+  letter-spacing: 0.24em;
+  color: var(--lamp-dim);
+}
+
+.gate-tension {
+  border-top: 1px solid #2f3742;
+  border-bottom: 1px solid #2f3742;
+  padding: 0.8rem 0;
+}
+
+.gate-tension-text {
+  margin: 0;
+  line-height: 1.7;
+  font-size: 0.92rem;
+  color: var(--lamp);
+}
+
+.gate-versus {
+  margin: 0.35em 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+}
+
+/* 手持ちが増えても「戸から離れる」に手が届くよう、スクロールはこの中だけ */
+.gate-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.gate-prompt {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+}
+
+.gate-empty {
+  margin: 0;
+  line-height: 1.9;
+  font-size: 0.92rem;
+  color: var(--ink-dim);
+}
+
+.gate-hand {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gate-hand .button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.gate-hand-text {
+  line-height: 1.6;
+}
+
+.gate-hand-source {
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+.button.is-gate {
+  border-style: solid;
+  border-color: var(--lamp-dim);
+  color: var(--lamp);
 }
 
 /* 動きを減らす設定の端末では、灯も言葉も静止させる */

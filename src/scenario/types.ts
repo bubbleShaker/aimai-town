@@ -8,6 +8,7 @@
 export type PlaceId = string;
 export type FragmentId = string;
 export type TalkId = string;
+export type GateId = string;
 
 /** 信念の断片。プレイヤーが集める短い命題 */
 export interface Fragment {
@@ -48,9 +49,44 @@ export interface Place {
   links: PlaceId[];
 }
 
+/**
+ * 選択が動かす二本の軸。プレイヤーには数値を見せない。
+ * distance … 負なら孤独へ、正なら関わりへ
+ * certainty … 負なら曖昧へ、正なら確信へ
+ */
+export interface AxisShift {
+  distance: number;
+  certainty: number;
+}
+
+/** 断片を差し出したときに扉が返すもの */
+export interface GateResponse {
+  lines: Line[];
+  shift: AxisShift;
+}
+
+/**
+ * 扉。両立しないように見える二枚を突きつけ、その間に置く一枚を要求する。
+ * どの断片を差し出しても開く。変わるのは返る言葉と、記録される軸だけ。
+ */
+export interface Gate {
+  id: GateId;
+  name: string;
+  /** この扉の向こうにある場所。ここへ入るには扉を開く必要がある */
+  beyond: PlaceId;
+  /** 突きつけられる、両立しないように見える二枚 */
+  tension: [FragmentId, FragmentId];
+  /** 扉の口上 */
+  prologue: Line[];
+  /** 差し出された断片ごとの返答。書かれていないものには fallback を使う */
+  responses: Record<FragmentId, GateResponse>;
+  fallback: GateResponse;
+}
+
 /** 世界そのもの。engine はこれを外から渡される（データとルールの分離） */
 export interface World {
   start: PlaceId;
   places: Place[];
   fragments: Fragment[];
+  gates: Gate[];
 }

@@ -4,7 +4,11 @@ import {
   canMove,
   collectedFragments,
   createInitialState,
+  findFragment,
+  findGate,
   findPlace,
+  gateResponse,
+  gatesAhead,
   pendingGrants,
   reduce,
   roads,
@@ -95,11 +99,91 @@ describe('roads', () => {
     const list = roads(world);
     const keys = list.map(([a, b]) => [a, b].sort().join('|'));
     expect(new Set(keys).size).toBe(list.length);
-    expect(list.length).toBe(2);
+    // 道は双方向に張られているので、畳むとちょうど半分になる
+    const totalLinks = world.places.reduce((n, p) => n + p.links.length, 0);
+    expect(list.length).toBe(totalLinks / 2);
+  });
+});
+
+describe('扉', () => {
+  /** 織り小屋まで行き、親方から二枚もらった状態 */
+  function atLoom() {
+    let s = reduce(createInitialState(world), { type: 'MOVE', to: 'loom' }, world);
+    s = reduce(s, { type: 'FINISH_TALK', talkId: 't-master' }, world);
+    return s;
+  }
+
+  it('開くまで、扉の向こうへは歩けない', () => {
+    const s = atLoom();
+    expect(canMove(world, s, 'loom-inner')).toBe(false);
+    expect(reduce(s, { type: 'MOVE', to: 'loom-inner' }, world)).toBe(s);
+  });
+
+  it('目の前の扉だけが見える', () => {
+    expect(gatesAhead(world, createInitialState(world))).toEqual([]);
+    expect(gatesAhead(world, atLoom()).map((g) => g.id)).toEqual(['g-work']);
+  });
+
+  it('持っていない断片は差し出せない', () => {
+    const s = atLoom();
+    expect(reduce(s, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-solitude' }, world)).toBe(s);
+  });
+
+  it('目の前に無い扉は開けられない', () => {
+    const s = reduce(createInitialState(world), { type: 'FINISH_TALK', talkId: 't-child' }, world);
+    expect(reduce(s, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-approval' }, world)).toBe(s);
+  });
+
+  it('どの断片を差し出しても扉は開き、選択が記録される', () => {
+    const before = atLoom();
+    for (const fragmentId of before.fragmentIds) {
+      const after = reduce(before, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId }, world);
+      expect(after.openedGateIds).toEqual(['g-work']);
+      expect(after.gateChoices).toEqual([{ gateId: 'g-work', fragmentId }]);
+      expect(canMove(world, after, 'loom-inner')).toBe(true);
+    }
+  });
+
+  it('一度開いた扉は、二度目の選択を受け付けない', () => {
+    let s = reduce(atLoom(), { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-autonomy' }, world);
+    const opened = s;
+    s = reduce(s, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-respect' }, world);
+    expect(s).toBe(opened);
+    expect(s.gateChoices).toHaveLength(1);
+  });
+
+  it('扉の向こうと行き来できる', () => {
+    let s = reduce(atLoom(), { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-autonomy' }, world);
+    s = reduce(s, { type: 'MOVE', to: 'loom-inner' }, world);
+    expect(s.currentPlaceId).toBe('loom-inner');
+    s = reduce(s, { type: 'MOVE', to: 'loom' }, world);
+    expect(s.currentPlaceId).toBe('loom');
+  });
+
+  it('返答が用意されていない断片には、共通の返答が使われる', () => {
+    const gate = findGate(world, 'g-work')!;
+    expect(gateResponse(gate, 'f-autonomy')).toBe(gate.responses['f-autonomy']);
+    expect(gateResponse(gate, 'f-unknown')).toBe(gate.fallback);
   });
 });
 
 describe('世界の整合性', () => {
+  it('扉が指す場所と断片は、すべて定義済みである', () => {
+    for (const gate of world.gates) {
+      expect(findPlace(world, gate.beyond), `${gate.id} の行き先が無い`).toBeDefined();
+      for (const id of [...gate.tension, ...Object.keys(gate.responses)]) {
+        expect(findFragment(world, id), `${gate.id} が未定義の断片 ${id} を指している`).toBeDefined();
+      }
+    }
+  });
+
+  it('扉の向こうへは、その扉を通る道しか無い', () => {
+    for (const gate of world.gates) {
+      const neighbors = world.places.filter((p) => p.links.includes(gate.beyond));
+      expect(neighbors.length, `${gate.beyond} に扉を通らない入口がある`).toBe(1);
+    }
+  });
+
   it('開始地点が存在する', () => {
     expect(findPlace(world, world.start)).toBeDefined();
   });

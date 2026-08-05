@@ -55,8 +55,9 @@ export const places: Place[] = [
     arrival: [
       { text: '機の音が、規則正しく霧を裂いている。' },
       { text: '手を止める者は、ひとりもいない。' },
+      { text: '小屋の奥に、閉じた戸がひとつ。' },
     ],
-    links: ['square'],
+    links: ['square', 'loom-inner'],
     talks: [
       {
         id: 't-master',
@@ -71,6 +72,30 @@ export const places: Place[] = [
           { text: '親方の灯は、少しも揺れなかった。' },
         ],
         grants: ['f-autonomy', 'f-respect'],
+      },
+    ],
+  },
+  {
+    id: 'loom-inner',
+    name: '機屋の奥',
+    x: 12,
+    y: 14,
+    arrival: [
+      { text: '奥の間には、織り上がった布が積まれている。' },
+      { text: 'どれも、誰かの寸法で裁たれるのを待っている。' },
+    ],
+    links: ['loom'],
+    talks: [
+      {
+        id: 't-cloth',
+        label: '積まれた布に触れる',
+        lines: [
+          { text: '布は厚く、しっかりしている。' },
+          { text: 'この一枚を織ったのは、たぶん一人だ。' },
+          { text: 'けれど、着るのは織った本人ではない。' },
+          { text: 'そういう順序で、この町のものはできている。' },
+        ],
+        grants: ['f-cloth'],
       },
     ],
   },
