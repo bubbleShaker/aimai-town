@@ -13,7 +13,10 @@
 
 ## 遊ぶ
 
-https://bubbleshaker.github.io/aimai-town/ （公開は M4 以降）
+https://bubbleshaker.github.io/aimai-town/
+
+スマートフォンの縦持ち向け。広場から歩きはじめ、三つの扉を開くと終幕へ行ける。
+まだ途中まで作ったものを出しているので、**セーブは無く、読み込み直すと最初から**になる。
 
 ## 開発
 
