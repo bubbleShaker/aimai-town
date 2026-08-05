@@ -12,13 +12,15 @@ interface Props {
   /** これまでに表示した行数 */
   shown: number;
   onAdvance: () => void;
+  /** 読み終えたときのボタンの文字。行き先が「もどる」でない場面で差し替える */
+  doneLabel?: string;
 }
 
 /**
  * 物語の表示欄。読んだ行は消さずに積み上げ、下に伸ばしていく。
  * 全文がその場に残るので、言葉を読み返しながら考えられる。
  */
-export function StoryView({ lines, shown, onAdvance }: Props) {
+export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる' }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const done = shown >= lines.length;
 
@@ -52,7 +54,7 @@ export function StoryView({ lines, shown, onAdvance }: Props) {
           onAdvance();
         }}
       >
-        {done ? '▼ もどる' : '▼ つづける'}
+        {done ? doneLabel : '▼ つづける'}
       </button>
     </div>
   );
