@@ -225,7 +225,7 @@ export function trace(world: World, state: GameState): GateTrace[] {
     if (!gate || !offered) return [];
     return [
       {
-        gate,
+        gate: { id: gate.id, name: gate.name },
         tension: gateTension(world, gate),
         offered,
         // 突きつけられた二枚のどちらでもない一枚を置いたなら、間に橋を架けたことになる
@@ -235,9 +235,19 @@ export function trace(world: World, state: GameState): GateTrace[] {
   });
 }
 
+/**
+ * 軌跡に出す戸。名だけを持ち、Gate そのものは渡さない。
+ * Gate は返答ごとの軸の値（shift）を抱えているので、そのまま画面へ流すと
+ * 「プレイヤーには数値を見せない」が型の上で守られなくなる。
+ */
+export interface TracedGate {
+  id: GateId;
+  name: string;
+}
+
 /** 戸ひとつ分の軌跡。集計ではなく、その場で何を突きつけられ、何を置いたか */
 export interface GateTrace {
-  gate: Gate;
+  gate: TracedGate;
   /** 突きつけられた二枚 */
   tension: Fragment[];
   /** 実際に置いた一枚 */

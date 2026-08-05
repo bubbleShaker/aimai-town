@@ -2,7 +2,7 @@ import type { World } from './types';
 import { places } from './places';
 import { fragments } from './fragments';
 import { gates } from './gates';
-import { endings } from './endings';
+import { closing, endings } from './endings';
 
 /** 町「曖昧」。engine はこの World を外から受け取って動く */
 export const world: World = {
@@ -12,6 +12,7 @@ export const world: World = {
   fragments,
   gates,
   endings,
+  closing,
 };
 
 export * from './types';

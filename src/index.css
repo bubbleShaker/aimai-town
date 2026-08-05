@@ -583,11 +583,16 @@ body {
   color: #5c636d;
 }
 
+/* 締めが数行に増えても行間が空きすぎないよう、間を空けるのは一行目の上だけ */
 .trace-closing {
-  margin: 2.2rem 0 0;
+  margin: 0.3rem 0 0;
   line-height: 1.9;
   font-size: 0.88rem;
   color: var(--ink-dim);
+}
+
+.trace-closing:first-of-type {
+  margin-top: 2.2rem;
 }
 
 /* 動きを減らす設定の端末では、灯も言葉も静止させる */

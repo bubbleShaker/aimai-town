@@ -1,7 +1,10 @@
 import type { GateTrace } from '../engine/state';
+import type { Line } from '../scenario/types';
 
 interface Props {
   traces: GateTrace[];
+  /** 締めの文。世界の言葉なので scenario から受け取る */
+  closing: Line[];
   onRestart: () => void;
 }
 
@@ -14,7 +17,7 @@ interface Props {
  *
  * 戸が増えても「もう一度」に手が届くよう、スクロールは本文の中だけに閉じる。
  */
-export function TraceView({ traces, onRestart }: Props) {
+export function TraceView({ traces, closing, onRestart }: Props) {
   return (
     <div className="trace">
       <h2 className="trace-title">置いてきたもの</h2>
@@ -45,7 +48,11 @@ export function TraceView({ traces, onRestart }: Props) {
             </li>
           ))}
         </ul>
-        <p className="trace-closing">霧は晴れない。町は、まだそこにある。</p>
+        {closing.map((line, i) => (
+          <p key={i} className="trace-closing">
+            {line.text}
+          </p>
+        ))}
       </div>
       <button className="button is-lit" onClick={onRestart}>
         もう一度、町へ降りる

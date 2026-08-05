@@ -49,8 +49,27 @@ type AfterReading =
   | { kind: 'openGate'; gate: Gate; fragmentId: FragmentId }
   | { kind: 'ending'; ending: Ending };
 
-/** 町を畳んで手もとだけを見せる場面。戸の前と、終わったあと */
-const FACING: Scene['kind'][] = ['choosing', 'ending', 'trace'];
+/**
+ * 町を畳んで手もとだけを見せる場面か。戸の前と、終わったあと。
+ * 配列で持たず switch で書くのは、Scene に枝を足したときに
+ * 書き忘れが黙って「町が見えたまま」に落ちないようにするため。
+ */
+function isFacing(scene: Scene): boolean {
+  switch (scene.kind) {
+    case 'choosing':
+    case 'ending':
+    case 'trace':
+      return true;
+    case 'idle':
+    case 'reading':
+    case 'note':
+      return false;
+    default: {
+      const exhaustive: never = scene;
+      throw new Error(`未処理の場面: ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
 
 /** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
 function opening(): Scene {
@@ -148,7 +167,7 @@ export function Game() {
 
   return (
     /* 戸に向き合っているあいだと終幕は、町を畳んで手もとだけを見せる */
-    <div className={FACING.includes(scene.kind) ? 'game is-facing' : 'game'}>
+    <div className={isFacing(scene) ? 'game is-facing' : 'game'}>
       <MapView world={world} state={state} onMove={scene.kind === 'idle' ? move : null} />
 
       <div className="panel">
@@ -226,7 +245,7 @@ export function Game() {
         )}
 
         {scene.kind === 'trace' && (
-          <TraceView traces={trace(world, state)} onRestart={restart} />
+          <TraceView traces={trace(world, state)} closing={world.closing} onRestart={restart} />
         )}
       </div>
     </div>
