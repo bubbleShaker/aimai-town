@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
-import type { FragmentId, PlaceId } from '../scenario/types';
+import type { FragmentId, Gate, PlaceId } from '../scenario/types';
 import {
   canMove,
   collectedFragments,
@@ -9,7 +9,6 @@ import {
   findGate,
   findPlace,
   gateResponse,
-  gateGuarding,
   gatesAhead,
   pendingGrants,
   reduce,
@@ -154,6 +153,29 @@ describe('扉', () => {
     expect(s.gateChoices).toHaveLength(1);
   });
 
+  /** 広場で一枚拾い、酒場へ移って常連からもう一枚もらった状態 */
+  function atTavern() {
+    let s = reduce(createInitialState(world), { type: 'FINISH_TALK', talkId: 't-nameless' }, world);
+    s = reduce(s, { type: 'MOVE', to: 'tavern' }, world);
+    return reduce(s, { type: 'FINISH_TALK', talkId: 't-regular' }, world);
+  }
+
+  it('酒場の扉も、手前で拾った断片だけで開く', () => {
+    const before = atTavern();
+    expect(gatesAhead(world, before).map((g) => g.id)).toEqual(['g-chat']);
+    for (const fragmentId of before.fragmentIds) {
+      const after = reduce(before, { type: 'OPEN_GATE', gateId: 'g-chat', fragmentId }, world);
+      expect(after.gateChoices).toEqual([{ gateId: 'g-chat', fragmentId }]);
+      expect(canMove(world, after, 'tavern-back')).toBe(true);
+    }
+  });
+
+  it('扉は互いに独立していて、片方を開いても他方は閉じたまま', () => {
+    const s = reduce(atTavern(), { type: 'OPEN_GATE', gateId: 'g-chat', fragmentId: 'f-bonding' }, world);
+    expect(s.openedGateIds).toEqual(['g-chat']);
+    expect(canMove(world, s, 'loom-inner')).toBe(false);
+  });
+
   it('扉の向こうと行き来できる', () => {
     let s = reduce(atLoom(), { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-autonomy' }, world);
     s = reduce(s, { type: 'MOVE', to: 'loom-inner' }, world);
@@ -201,38 +223,61 @@ describe('世界の整合性', () => {
     }
   });
 
-  it('扉に必ず差し出せる断片には、専用の返答が用意されている', () => {
-    const sure = fragmentsWithoutOpeningGates();
+  it('扉の前に立つまでに持ちうる断片には、専用の返答が用意されている', () => {
     for (const gate of world.gates) {
-      for (const id of sure) {
+      for (const id of fragmentsObtainableBefore(gate)) {
         expect(gate.responses[id], `${gate.id} に ${id} への返答が無い`).toBeDefined();
       }
     }
   });
 
   /**
-   * 扉をひとつも開かずに手に入る断片。
-   * 扉の向こうにあるものは数えないので、これは「最低限これだけは返答が要る」の一覧。
+   * その扉の前に立つ時点で、手にしていることがありうる断片。
+   *
+   * どの扉も一枚差し出せば開き、その一枚は開始地点で必ず手に入るので、
+   * 他の扉はすべて通れるものとして数える。
+   * 除くのは、この扉の向こうを通らなければ届かない断片だけ。
+   * つまり「持っているのに差し出す先が無い死に札」を作らないための一覧でもある。
    */
-  function fragmentsWithoutOpeningGates(): Set<FragmentId> {
+  function fragmentsObtainableBefore(gate: Gate): Set<FragmentId> {
     const seen = new Set<PlaceId>([world.start]);
     const queue: PlaceId[] = [world.start];
     while (queue.length > 0) {
       const place = findPlace(world, queue.shift()!)!;
       for (const to of place.links) {
-        if (seen.has(to) || gateGuarding(world, to)) continue;
+        if (seen.has(to) || to === gate.beyond) continue;
         seen.add(to);
         queue.push(to);
       }
     }
-    // 扉の手前の場所も含めて、そこで得られる断片を集める
-    return new Set(
-      [...seen].flatMap((id) => findPlace(world, id)!.talks.flatMap((t) => t.grants)),
-    );
+    return new Set([...seen].flatMap((id) => findPlace(world, id)!.talks.flatMap((t) => t.grants)));
   }
+
+  it('扉が突きつける二枚は、その扉に着くまでに手に入る', () => {
+    for (const gate of world.gates) {
+      const obtainable = fragmentsObtainableBefore(gate);
+      for (const id of gate.tension) {
+        expect(obtainable.has(id), `${gate.id} が突きつける ${id} を、扉の前で拾えない`).toBe(true);
+      }
+    }
+  });
 
   it('開始地点が存在する', () => {
     expect(findPlace(world, world.start)).toBeDefined();
+  });
+
+  it('すべての場所へ、扉を開けば辿り着ける', () => {
+    const seen = new Set<PlaceId>([world.start]);
+    const queue: PlaceId[] = [world.start];
+    while (queue.length > 0) {
+      for (const to of findPlace(world, queue.shift()!)!.links) {
+        if (seen.has(to)) continue;
+        seen.add(to);
+        queue.push(to);
+      }
+    }
+    const stranded = world.places.filter((p) => !seen.has(p.id)).map((p) => p.id);
+    expect(stranded, `どこからも歩いて行けない場所がある: ${stranded.join(', ')}`).toEqual([]);
   });
 
   it('場所・断片・対話の id に重複が無い', () => {
