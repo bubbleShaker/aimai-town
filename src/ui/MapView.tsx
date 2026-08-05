@@ -47,6 +47,8 @@ export function MapView({ world, state, onMove }: Props) {
         return (
           <button
             key={place.id}
+            /* 名前は訪れるまで伏せてあるので、通しプレイの撮影はこの id で灯を掴む */
+            data-place={place.id}
             className={['place', here && 'is-here', reachable && 'is-reachable', locked && 'is-locked']
               .filter(Boolean)
               .join(' ')}

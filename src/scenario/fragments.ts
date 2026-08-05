@@ -36,4 +36,24 @@ export const fragments: Fragment[] = [
     text: '誰も介さずに満ちている、それが真の幸福だ',
     source: '井戸に落とした自分の声',
   },
+  {
+    id: 'f-bonding',
+    text: '用のない話をした分だけ、近くなる',
+    source: '酒場の常連',
+  },
+  {
+    id: 'f-noise',
+    text: '輪の外にいても、輪の音は聞こえる',
+    source: '酒場の裏の壁越し',
+  },
+  {
+    id: 'f-cannot-alone',
+    text: '渡る先がないなら、それは橋ではない',
+    source: '橋を渡る人',
+  },
+  {
+    id: 'f-keeper',
+    text: '足りている。それだけの話だ',
+    source: '灯台守の火のそば',
+  },
 ];
