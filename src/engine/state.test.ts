@@ -29,6 +29,7 @@ import {
   resolveEnding,
   resolveEndingId,
   roads,
+  trace,
 } from './state';
 
 describe('createInitialState', () => {
@@ -331,6 +332,59 @@ describe('終幕', () => {
     const s = playThrough({ 'g-work': 'f-approval' });
     expect(s.currentPlaceId).toBe(world.finale);
     expect(resolveEndingId(world, s)).not.toBe('e-nameless');
+  });
+});
+
+describe('軌跡', () => {
+  it('扉をひとつも開いていないうちは、振り返るものが無い', () => {
+    expect(trace(world, createInitialState(world))).toEqual([]);
+  });
+
+  it('開いた戸の数だけ、開いた順に並ぶ', () => {
+    const s = playThrough();
+    expect(trace(world, s).map((t) => t.gate.id)).toEqual(s.gateChoices.map((c) => c.gateId));
+    expect(trace(world, s)).toHaveLength(world.gates.length);
+  });
+
+  it('戸ごとに、突きつけられた二枚と置いた一枚が実体で残る', () => {
+    for (const t of trace(world, playThrough())) {
+      expect(t.tension).toHaveLength(2);
+      expect(t.tension.map((f) => f.id)).toEqual(t.gate.tension);
+      expect(t.offered.text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('置いた一枚が、記録された選択と食い違わない', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    const work = trace(world, s).find((t) => t.gate.id === 'g-work');
+    expect(work?.offered.id).toBe('f-approval');
+  });
+
+  it('突きつけられた片方をそのまま置いた戸は、架けたことにならない', () => {
+    const gate = world.gates[0];
+    const s = playThrough({ [gate.id]: gate.tension[0] });
+    const walked = trace(world, s).find((t) => t.gate.id === gate.id);
+    expect(walked?.bridged).toBe(false);
+  });
+
+  it('二枚のどちらでもない一枚を置いた戸は、架けたことになる', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    const work = trace(world, s).find((t) => t.gate.id === 'g-work');
+    // f-approval は仕事の戸が突きつける二枚のどちらでもない
+    expect(work?.gate.tension).not.toContain('f-approval');
+    expect(work?.bridged).toBe(true);
+  });
+
+  /**
+   * 軌跡の読みと終幕の判定が割れないこと。
+   * 「どの戸にも架けなかった」を二か所で別々に判定すると、
+   * エンドロールでは架けていないのに名もなき灯にならない、といった食い違いが起きる。
+   */
+  it('どこにも架けなかった遊び方と、名もなき灯が一致する', () => {
+    for (const s of everyPlaythrough()) {
+      const bridgedNowhere = trace(world, s).every((t) => !t.bridged);
+      expect(resolveEndingId(world, s) === 'e-nameless').toBe(bridgedNowhere);
+    }
   });
 });
 
