@@ -83,10 +83,34 @@ export interface Gate {
   fallback: GateResponse;
 }
 
+/**
+ * 終幕の名。
+ * どれを引くかを決めるのは engine なので、id は増やせる集合ではなく決まった集合にする。
+ * こうしておくと World.endings が Record になり、「文が書かれていないエンド」を型で消せる。
+ */
+export type EndingId =
+  | 'e-lighthouse'
+  | 'e-weaver'
+  | 'e-square'
+  | 'e-fog'
+  | 'e-halfway'
+  | 'e-nameless';
+
+/** 終幕。どのエンドにも優劣はない。「正解のエンド」は作らない */
+export interface Ending {
+  id: EndingId;
+  name: string;
+  lines: Line[];
+}
+
 /** 世界そのもの。engine はこれを外から渡される（データとルールの分離） */
 export interface World {
   start: PlaceId;
+  /** 終幕の場所。町の扉をすべて開くまで、ここへは入れない */
+  finale: PlaceId;
   places: Place[];
   fragments: Fragment[];
   gates: Gate[];
+  /** すべての EndingId に文があることを、型で要求する */
+  endings: Record<EndingId, Ending>;
 }

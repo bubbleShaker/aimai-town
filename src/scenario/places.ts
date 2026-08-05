@@ -111,7 +111,7 @@ export const places: Place[] = [
       { text: '井戸は深く、底は見えない。' },
       { text: 'ここまで来ると、機の音も笑い声も届かない。' },
     ],
-    links: ['square'],
+    links: ['square', 'fog-bottom'],
     talks: [
       {
         id: 't-echo',
@@ -126,6 +126,23 @@ export const places: Place[] = [
         grants: ['f-solitude'],
       },
     ],
+  },
+  {
+    id: 'fog-bottom',
+    name: '霧の底',
+    /* 井戸から、町のいちばん奥へ。上へ行くほど霧が深いという配りに合わせて最上段に置く */
+    x: 50,
+    y: 14,
+    arrival: [
+      { text: '道は下っているのに、灯はどれも上に見える。' },
+      { text: '霧がいちばん濃いのは、ここだ。' },
+      { text: '足もとに水があり、灯がひとつ映っている。' },
+      { text: 'それが自分の灯だと、ここで初めて気がつく。' },
+      { text: '色は、まだ見えない。' },
+    ],
+    links: ['well'],
+    /* ここに住人はいない。あるのは、自分の灯を見ることだけ */
+    talks: [],
   },
   {
     id: 'tavern',

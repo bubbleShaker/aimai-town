@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
-import type { FragmentId, Gate, PlaceId } from '../scenario/types';
+import type { EndingId, FragmentId, Gate, GateId, PlaceId, TalkId } from '../scenario/types';
 import type { GameState } from './state';
 import {
+  allGatesOpened,
+  axes,
   canMove,
   collectedFragments,
   createInitialState,
@@ -12,8 +14,11 @@ import {
   gateGuarding,
   gateResponse,
   gatesAhead,
+  isSealed,
   pendingGrants,
   reduce,
+  resolveEnding,
+  resolveEndingId,
   roads,
 } from './state';
 
@@ -194,7 +199,125 @@ describe('扉', () => {
   });
 });
 
+describe('軸', () => {
+  it('扉をひとつも開いていないうちは、どちらへも振れていない', () => {
+    expect(axes(world, createInitialState(world))).toEqual({ distance: 0, certainty: 0 });
+  });
+
+  it('扉に置いた一枚の分だけ振れる', () => {
+    let s = reduce(createInitialState(world), { type: 'MOVE', to: 'loom' }, world);
+    s = reduce(s, { type: 'FINISH_TALK', talkId: 't-master' }, world);
+    s = reduce(s, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-autonomy' }, world);
+    const gate = findGate(world, 'g-work')!;
+    expect(axes(world, s)).toEqual(gate.responses['f-autonomy'].shift);
+  });
+
+  it('置いた分が積み重なる', () => {
+    const s = playThrough({ 'g-work': 'f-autonomy', 'g-chat': 'f-bonding' });
+    const work = findGate(world, 'g-work')!.responses['f-autonomy'].shift;
+    const chat = findGate(world, 'g-chat')!.responses['f-bonding'].shift;
+    const happiness = findGate(world, 'g-happiness')!;
+    // 三つ目は playThrough の既定（そのとき手にしている先頭の一枚）で開いている
+    const third = gateResponse(happiness, s.gateChoices[2].fragmentId).shift;
+    expect(axes(world, s)).toEqual({
+      distance: work.distance + chat.distance + third.distance,
+      certainty: work.certainty + chat.certainty + third.certainty,
+    });
+  });
+});
+
+describe('終幕', () => {
+  it('扉をすべて開くまで、霧の底へは歩けない', () => {
+    let s = reduce(createInitialState(world), { type: 'MOVE', to: 'well' }, world);
+    expect(allGatesOpened(world, s)).toBe(false);
+    expect(isSealed(world, s, world.finale)).toBe(true);
+    expect(canMove(world, s, world.finale)).toBe(false);
+    s = reduce(s, { type: 'MOVE', to: world.finale }, world);
+    expect(s.currentPlaceId).toBe('well');
+  });
+
+  it('三つの扉を開けば、霧の底まで歩ける', () => {
+    const s = playThrough();
+    expect(allGatesOpened(world, s)).toBe(true);
+    expect(isSealed(world, s, world.finale)).toBe(false);
+    expect(s.currentPlaceId).toBe(world.finale);
+  });
+
+  it('霧の底までの道のりで、町の言葉はすべて拾える', () => {
+    const s = playThrough();
+    expect([...s.fragmentIds].sort()).toEqual(world.fragments.map((f) => f.id).sort());
+  });
+
+  /**
+   * 六つの終幕すべてに、そこへ至る遊び方が実在すること。
+   * 扉に置く一枚の組み合わせを総当たりし、実際に engine を通して歩かせて確かめる。
+   * 落ちたら「引けない終幕」＝書いたのに誰も読めない文があることになる。
+   */
+  it('六つの終幕すべてに、そこへ至る遊び方が実在する', () => {
+    const reached = new Map<EndingId, FragmentId[]>();
+    for (const state of everyPlaythrough()) {
+      reached.set(
+        resolveEndingId(world, state),
+        state.gateChoices.map((c) => c.fragmentId),
+      );
+    }
+    const missing = Object.keys(world.endings).filter((id) => !reached.has(id as EndingId));
+    expect(missing, `どう遊んでも引けない終幕がある: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('どう遊んでも、必ずひとつの終幕に落ちる', () => {
+    for (const state of everyPlaythrough()) {
+      const ending = resolveEnding(world, state);
+      expect(ending.id).toBe(resolveEndingId(world, state));
+      expect(ending.lines.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('矛盾を矛盾のまま抱えると、名もなき灯になる', () => {
+    // どの戸でも、突きつけられた二枚のうちの片方をそのまま置く
+    const s = playThrough(
+      Object.fromEntries(world.gates.map((g) => [g.id, g.tension[0]])) as Record<
+        GateId,
+        FragmentId
+      >,
+    );
+    expect(s.currentPlaceId).toBe(world.finale);
+    expect(resolveEndingId(world, s)).toBe('e-nameless');
+  });
+
+  it('間に第三の一枚を架ければ、名もなき灯にはならない', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    expect(s.currentPlaceId).toBe(world.finale);
+    expect(resolveEndingId(world, s)).not.toBe('e-nameless');
+  });
+});
+
 describe('世界の整合性', () => {
+  it('終幕の場所は実在し、そこに住人はいない', () => {
+    const finale = findPlace(world, world.finale);
+    expect(finale, '終幕の場所が無い').toBeDefined();
+    expect(finale!.talks, '終幕に住人を置かない（あるのは灯を見ることだけ）').toEqual([]);
+  });
+
+  it('終幕へ通じる道は一本だけである', () => {
+    const neighbors = world.places.filter((p) => p.links.includes(world.finale));
+    expect(neighbors.length, '終幕へ複数の入口がある').toBe(1);
+  });
+
+  it('終幕は、扉ではなく開いた扉の数で守られている', () => {
+    // 扉で守ると「一枚差し出せば開く」ことになり、町を巡らずに終われてしまう
+    expect(gateGuarding(world, world.finale)).toBeUndefined();
+  });
+
+  it('終幕の id と、書かれた文の見出しが一致する', () => {
+    for (const [id, ending] of Object.entries(world.endings)) {
+      expect(ending.id, `${id} の中身が別の終幕になっている`).toBe(id);
+      expect(ending.name.length, `${id} に名が無い`).toBeGreaterThan(0);
+    }
+    const names = Object.values(world.endings).map((e) => e.name);
+    expect(new Set(names).size, `終幕の名が重複している: ${names.join(', ')}`).toBe(names.length);
+  });
+
   it('扉が指す場所と断片は、すべて定義済みである', () => {
     for (const gate of world.gates) {
       expect(findPlace(world, gate.beyond), `${gate.id} の行き先が無い`).toBeDefined();
@@ -327,6 +450,85 @@ function fragmentsObtainableBefore(gate: Gate): Set<FragmentId> {
 }
 
 /**
+ * 町をひと巡りして三つの扉を開き、霧の底まで歩いた状態。
+ *
+ * `offers` で扉に置く一枚を指定できる。指定の無い扉は、そのとき手にしている先頭の一枚で開く。
+ * 順路は決め打ちなので、町に場所や扉を足したらここも継ぎ足す
+ * （継ぎ足し忘れは「町の言葉はすべて拾える」が落ちて分かる）。
+ */
+function playThrough(offers: Partial<Record<GateId, FragmentId>> = {}): GameState {
+  let state = createInitialState(world);
+  const go = (to: PlaceId) => {
+    state = reduce(state, { type: 'MOVE', to }, world);
+  };
+  const talk = (talkId: TalkId) => {
+    state = reduce(state, { type: 'FINISH_TALK', talkId }, world);
+  };
+  const open = (gateId: GateId) => {
+    const fragmentId = offers[gateId] ?? state.fragmentIds[0];
+    state = reduce(state, { type: 'OPEN_GATE', gateId, fragmentId }, world);
+  };
+
+  talk('t-child');
+  talk('t-nameless');
+
+  go('loom');
+  talk('t-master');
+  open('g-work');
+  go('loom-inner');
+  talk('t-cloth');
+  go('loom');
+  go('square');
+
+  go('tavern');
+  talk('t-regular');
+  open('g-chat');
+  go('tavern-back');
+  talk('t-wall');
+  go('tavern');
+  go('square');
+
+  // 灯台の戸が突きつける一枚は井戸で拾うので、橋より先にここを通る
+  go('well');
+  talk('t-echo');
+  go('square');
+
+  go('bridge');
+  talk('t-crosser');
+  open('g-happiness');
+  go('lighthouse');
+  talk('t-keeper');
+  go('bridge');
+  go('square');
+
+  go('well');
+  go(world.finale);
+  return state;
+}
+
+/**
+ * 扉に置く一枚の組み合わせを総当たりした、遊び方のすべて。
+ * その時点で持っていない一枚を指定した組み合わせは扉が開かず、
+ * 霧の底まで届かないので数えない。
+ */
+function* everyPlaythrough(): Generator<GameState> {
+  const ids = world.fragments.map((f) => f.id);
+  for (const work of ids) {
+    for (const chat of ids) {
+      for (const happiness of ids) {
+        const state = playThrough({
+          'g-work': work,
+          'g-chat': chat,
+          'g-happiness': happiness,
+        });
+        if (state.currentPlaceId !== world.finale) continue;
+        yield state;
+      }
+    }
+  }
+}
+
+/**
  * その扉の手前まで、実際に歩いて拾えるものを拾った状態を作る。
  * 机上の集合（fragmentsObtainableBefore）ではなく engine を通すので、
  * 「そう歩ける道が本当にあるか」までここで確かめられる。
@@ -353,6 +555,8 @@ function walkTo(gate: Gate): GameState {
           world,
         );
       }
+      // 終幕のように、扉を開くだけでは入れない場所は通らない
+      if (!canMove(world, state, to)) continue;
       state = reduce(state, { type: 'MOVE', to }, world);
       explore(to);
       state = reduce(state, { type: 'MOVE', to: from }, world);
