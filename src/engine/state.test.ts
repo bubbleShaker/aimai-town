@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
+import type { FragmentId, PlaceId } from '../scenario/types';
 import {
   canMove,
   collectedFragments,
@@ -8,6 +9,7 @@ import {
   findGate,
   findPlace,
   gateResponse,
+  gateGuarding,
   gatesAhead,
   pendingGrants,
   reduce,
@@ -183,6 +185,51 @@ describe('世界の整合性', () => {
       expect(neighbors.length, `${gate.beyond} に扉を通らない入口がある`).toBe(1);
     }
   });
+
+  it('扉の id と行き先に重複が無い', () => {
+    const ids = world.gates.map((g) => g.id);
+    const beyonds = world.gates.map((g) => g.beyond);
+    expect(new Set(ids).size, `扉の id が重複している: ${ids.join(', ')}`).toBe(ids.length);
+    expect(new Set(beyonds).size, `同じ場所を守る扉が複数ある: ${beyonds.join(', ')}`).toBe(
+      beyonds.length,
+    );
+  });
+
+  it('扉が突きつける二枚は、別の断片である', () => {
+    for (const gate of world.gates) {
+      expect(gate.tension[0], `${gate.id} が同じ断片を二枚突きつけている`).not.toBe(gate.tension[1]);
+    }
+  });
+
+  it('扉に必ず差し出せる断片には、専用の返答が用意されている', () => {
+    const sure = fragmentsWithoutOpeningGates();
+    for (const gate of world.gates) {
+      for (const id of sure) {
+        expect(gate.responses[id], `${gate.id} に ${id} への返答が無い`).toBeDefined();
+      }
+    }
+  });
+
+  /**
+   * 扉をひとつも開かずに手に入る断片。
+   * 扉の向こうにあるものは数えないので、これは「最低限これだけは返答が要る」の一覧。
+   */
+  function fragmentsWithoutOpeningGates(): Set<FragmentId> {
+    const seen = new Set<PlaceId>([world.start]);
+    const queue: PlaceId[] = [world.start];
+    while (queue.length > 0) {
+      const place = findPlace(world, queue.shift()!)!;
+      for (const to of place.links) {
+        if (seen.has(to) || gateGuarding(world, to)) continue;
+        seen.add(to);
+        queue.push(to);
+      }
+    }
+    // 扉の手前の場所も含めて、そこで得られる断片を集める
+    return new Set(
+      [...seen].flatMap((id) => findPlace(world, id)!.talks.flatMap((t) => t.grants)),
+    );
+  }
 
   it('開始地点が存在する', () => {
     expect(findPlace(world, world.start)).toBeDefined();

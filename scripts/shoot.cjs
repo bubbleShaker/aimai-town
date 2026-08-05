@@ -38,13 +38,21 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
   await read();
   await shot('02-actions');
 
-  // 子どもとの対話（断片を得る）
+  // 広場のふたりから断片を得る
   await tap('.button >> nth=0');
   await read(true);
   await shot('03-talk');
   await read();
+  await tap('.button >> nth=1');
+  await read();
 
-  // 織り小屋へ移動し、親方から二枚もらう
+  // 井戸へ寄ってから織り小屋へ。扉の前に立つ時点で手持ち五枚になる
+  await tap('.place >> nth=3');
+  await read();
+  await tap('.button >> nth=0');
+  await read();
+  await tap('.place >> nth=0');
+  await read();
   await tap('.place >> nth=1');
   await read();
   await tap('.button >> nth=0');

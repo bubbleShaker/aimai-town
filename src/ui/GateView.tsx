@@ -1,7 +1,7 @@
-import type { Fragment, FragmentId, Gate } from '../scenario/types';
+import type { Fragment, FragmentId } from '../scenario/types';
 
 interface Props {
-  gate: Gate;
+  title: string;
   /** 扉が突きつける、両立しないように見える二枚 */
   tension: Fragment[];
   /** 差し出せる手持ちの断片 */
@@ -14,10 +14,10 @@ interface Props {
  * 扉の前。二枚のあいだに置く一枚を選ぶ。
  * どれを選んでも扉は開くので、ここに正解／不正解の表示は無い。
  */
-export function GateView({ gate, tension, hand, onOffer, onLeave }: Props) {
+export function GateView({ title, tension, hand, onOffer, onLeave }: Props) {
   return (
     <div className="gate">
-      <h2 className="gate-title">{gate.name}</h2>
+      <h2 className="gate-title">{title}</h2>
 
       <div className="gate-tension">
         {tension.map((f, i) => (

@@ -95,9 +95,17 @@ export function canMove(world: World, state: GameState, to: PlaceId): boolean {
   return !gate || state.openedGateIds.includes(gate.id);
 }
 
-/** その扉に差し出せる断片。手持ちがそのまま候補になる */
-export function offerableFragments(world: World, state: GameState): Fragment[] {
+/**
+ * その扉に差し出せる断片。いまは手持ちがそのまま候補になる。
+ * 扉ごとに置ける／置けないの規則が要るとき、ここだけを変えれば済むよう gate を受けておく。
+ */
+export function offerableFragments(world: World, state: GameState, _gate: Gate): Fragment[] {
   return collectedFragments(world, state);
+}
+
+/** 扉が突きつける二枚を、実体で取り出す */
+export function gateTension(world: World, gate: Gate): Fragment[] {
+  return gate.tension.map((id) => findFragment(world, id)).filter((f): f is Fragment => f !== undefined);
 }
 
 /** 差し出された断片に対して扉が返すもの。書かれていない断片には共通の返答を使う */
@@ -135,6 +143,8 @@ export function reduce(state: GameState, action: GameAction, world: World): Game
       if (!gate) return state;
       // 持っていない断片は差し出せない
       if (!state.fragmentIds.includes(action.fragmentId)) return state;
+      // 扉は二度開かない（gatesAhead が開いた扉を除いている）ので、
+      // gateChoices には扉ごとに高々一件しか積まれない。M3 の集計はこれを前提にする
       return {
         ...state,
         openedGateIds: addUnique(state.openedGateIds, gate.id),

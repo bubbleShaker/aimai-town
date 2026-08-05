@@ -60,6 +60,21 @@ body {
   max-width: 480px;
   margin: 0 auto;
   padding-bottom: env(safe-area-inset-bottom);
+  transition: grid-template-rows 0.45s ease;
+}
+
+/*
+ * 戸に向き合っているあいだは町を畳む。
+ * 手もとの断片を並べる場所を確保するためでもあり、
+ * 「戸の前では町が見えなくなる」という演出でもある。
+ */
+.game.is-facing {
+  grid-template-rows: 0 1fr;
+}
+
+.game.is-facing .map {
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 /* ── マップ ───────────────────────────── */
@@ -382,11 +397,15 @@ body {
   color: var(--ink-dim);
 }
 
-/* 手持ちが増えても「戸から離れる」に手が届くよう、スクロールはこの中だけ */
+/*
+ * 手持ちが増えても「戸から離れる」に手が届くよう、スクロールはこの中だけ。
+ * 下端を薄くしているのは、まだ続きがあることを示すため。
+ */
 .gate-body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6rem), transparent);
 }
 
 .gate-prompt {
