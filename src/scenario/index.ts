@@ -1,0 +1,12 @@
+import type { World } from './types';
+import { places } from './places';
+import { fragments } from './fragments';
+
+/** 町「曖昧」。engine はこの World を外から受け取って動く */
+export const world: World = {
+  start: 'square',
+  places,
+  fragments,
+};
+
+export * from './types';
