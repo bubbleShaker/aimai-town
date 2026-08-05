@@ -1,32 +1,45 @@
-# React + TypeScript + Vite
+# 曖昧な町
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+スマートフォンのブラウザで遊ぶ、思索的な謎解きゲーム。
 
-Currently, two official plugins are available:
+> 他者を介在させずに自立し、承認に囚われずに幸福を得ている状態を、
+> 人間の真の幸せだと今のところ認識している。
+> しかし人は一人では生きられない。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+この矛盾を出発点にしている。**開発者側に正解は用意していない。**
+プレイヤーは霧の町「曖昧」を巡り、住人の言葉から**信念の断片**を集める。
+断片は互いに両立するとは限らず、町の**扉**は「両立しない二枚」を突きつけて、
+その間に橋を架ける三枚目を選ばせる。どう架けたかがエンディングを分ける。
 
-## React Compiler
+## 遊ぶ
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+https://bubbleshaker.github.io/aimai-town/ （公開は M4 以降）
 
-## Expanding the Oxlint configuration
+## 開発
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev     # 開発サーバ
+npm test        # engine の単体テスト
+npm run build   # 型チェックとビルド
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+スマホ幅での見た目を確認する（開発サーバを起動した状態で）:
+
+```bash
+node scripts/shoot.cjs <出力先ディレクトリ>
+```
+
+## 構成
+
+世界観のデータと、ゲームのルールと、画面を分けてある。
+テキストを書き足す作業と、コードを触る作業を混ぜないための境界。
+
+```
+src/
+  scenario/  場所・住人・断片の定義（データのみ。React に依存しない）
+  engine/    状態遷移の純粋関数。副作用を持たないのでそのままテストできる
+  ui/        React コンポーネント。描画だけを担当する
+```
+
+設計と進行状況は [PLAN.md](./PLAN.md) を参照。
