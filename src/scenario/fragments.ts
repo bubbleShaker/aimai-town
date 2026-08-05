@@ -27,6 +27,11 @@ export const fragments: Fragment[] = [
     source: '織り手の親方',
   },
   {
+    id: 'f-cloth',
+    text: '織るのは一人でもできる。着るのは一人ではない',
+    source: '機屋の奥の布',
+  },
+  {
     id: 'f-solitude',
     text: '誰も介さずに満ちている、それが真の幸福だ',
     source: '井戸に落とした自分の声',

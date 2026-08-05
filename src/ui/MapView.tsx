@@ -1,6 +1,6 @@
 import type { PlaceId, World } from '../scenario/types';
 import type { GameState } from '../engine/state';
-import { canMove, findPlace, roads } from '../engine/state';
+import { canMove, findPlace, gateGuarding, roads } from '../engine/state';
 
 interface Props {
   world: World;
@@ -41,10 +41,15 @@ export function MapView({ world, state, onMove }: Props) {
         const here = place.id === state.currentPlaceId;
         const reachable = onMove !== null && canMove(world, state, place.id);
         const visited = state.visitedPlaceIds.includes(place.id);
+        // 扉がまだ開いていない場所は、閉ざされていることが分かるように描く
+        const gate = gateGuarding(world, place.id);
+        const locked = gate !== undefined && !state.openedGateIds.includes(gate.id);
         return (
           <button
             key={place.id}
-            className={['place', here && 'is-here', reachable && 'is-reachable'].filter(Boolean).join(' ')}
+            className={['place', here && 'is-here', reachable && 'is-reachable', locked && 'is-locked']
+              .filter(Boolean)
+              .join(' ')}
             style={{ left: `${place.x}%`, top: `${place.y}%` }}
             disabled={!reachable}
             onClick={() => onMove?.(place.id)}
