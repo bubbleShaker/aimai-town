@@ -452,10 +452,54 @@ body {
   color: var(--lamp);
 }
 
+/* 終幕でだけ現れる行き先。戸より強く灯し、他の行動と見分けられるようにする */
+.button.is-lit {
+  border-style: solid;
+  border-color: var(--lamp);
+  color: var(--lamp);
+  text-align: center;
+  letter-spacing: 0.14em;
+}
+
+/* ── 終幕 ───────────────────────────── */
+
+/*
+ * 読み終えたあとに残る画面。
+ * 何番目のエンドかも、他にいくつあるかも出さない（優劣をつけないため）。
+ */
+.ending {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+}
+
+.ending-lead {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+}
+
+.ending-name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: normal;
+  letter-spacing: 0.3em;
+  /* 字間を右端にも足しているぶん、見た目の中心が左へずれるので戻す */
+  text-indent: 0.3em;
+  color: var(--lamp);
+  text-shadow: 0 0 24px rgba(232, 185, 106, 0.3);
+  animation: emerge 1.4s ease-out;
+}
+
 /* 動きを減らす設定の端末では、灯も言葉も静止させる */
 @media (prefers-reduced-motion: reduce) {
   .place.is-here .place-dot,
-  .line {
+  .line,
+  .ending-name {
     animation: none;
   }
 }

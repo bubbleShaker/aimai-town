@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { world } from '../scenario';
-import type { FragmentId, Gate, PlaceId, TalkId } from '../scenario/types';
+import type { Ending, FragmentId, Gate, PlaceId, TalkId } from '../scenario/types';
 import {
   collectedFragments,
   createInitialState,
@@ -12,8 +12,10 @@ import {
   offerableFragments,
   pendingGrants,
   reduce,
+  resolveEnding,
 } from '../engine/state';
 import type { GameState } from '../engine/state';
+import { EndingView } from './EndingView';
 import { GateView } from './GateView';
 import { MapView } from './MapView';
 import { NoteView } from './NoteView';
@@ -29,7 +31,8 @@ type Scene =
   | { kind: 'idle' }
   | { kind: 'reading'; lines: ShownLine[]; shown: number; then: AfterReading }
   | { kind: 'choosing'; gate: Gate }
-  | { kind: 'note' };
+  | { kind: 'note' }
+  | { kind: 'ending'; ending: Ending };
 
 /**
  * 読み終えたときに何が起きるか。
@@ -40,7 +43,8 @@ type AfterReading =
   | { kind: 'idle' }
   | { kind: 'finishTalk'; talkId: TalkId }
   | { kind: 'choosing'; gate: Gate }
-  | { kind: 'openGate'; gate: Gate; fragmentId: FragmentId };
+  | { kind: 'openGate'; gate: Gate; fragmentId: FragmentId }
+  | { kind: 'ending'; ending: Ending };
 
 export function Game() {
   const [state, setState] = useState<GameState>(() => createInitialState(world));
@@ -108,6 +112,9 @@ export function Game() {
       case 'choosing':
         setScene({ kind: 'choosing', gate: then.gate });
         break;
+      case 'ending':
+        setScene({ kind: 'ending', ending: then.ending });
+        break;
       case 'idle':
         setScene({ kind: 'idle' });
         break;
@@ -120,13 +127,18 @@ export function Game() {
   }
 
   return (
-    /* 戸に向き合っているあいだは、町を畳んで手もとだけを見せる */
-    <div className={scene.kind === 'choosing' ? 'game is-facing' : 'game'}>
+    /* 戸に向き合っているあいだと終幕は、町を畳んで手もとだけを見せる */
+    <div className={scene.kind === 'choosing' || scene.kind === 'ending' ? 'game is-facing' : 'game'}>
       <MapView world={world} state={state} onMove={scene.kind === 'idle' ? move : null} />
 
       <div className="panel">
         {scene.kind === 'reading' && (
-          <StoryView lines={scene.lines} shown={scene.shown} onAdvance={advance} />
+          <StoryView
+            lines={scene.lines}
+            shown={scene.shown}
+            onAdvance={advance}
+            doneLabel={scene.then.kind === 'ending' ? '▼ 灯を見る' : undefined}
+          />
         )}
 
         {scene.kind === 'idle' && (
@@ -138,6 +150,18 @@ export function Game() {
                 {state.finishedTalkIds.includes(talk.id) && <span className="button-note">（再）</span>}
               </button>
             ))}
+            {/* 終幕の場所でだけ現れる、最後の行動。ここへ来られる条件は engine が守っている */}
+            {place.id === world.finale && (
+              <button
+                className="button is-lit"
+                onClick={() => {
+                  const ending = resolveEnding(world, state);
+                  read(ending.lines, { kind: 'ending', ending });
+                }}
+              >
+                水に映る灯を見る
+              </button>
+            )}
             {pendingGates.map((gate) => (
               <button
                 key={gate.id}
@@ -176,6 +200,8 @@ export function Game() {
             onClose={() => setScene({ kind: 'idle' })}
           />
         )}
+
+        {scene.kind === 'ending' && <EndingView ending={scene.ending} />}
       </div>
     </div>
   );

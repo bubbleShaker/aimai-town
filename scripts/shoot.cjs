@@ -29,11 +29,15 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
    * 「歩けない灯を叩いて素通り」してしまい、道が壊れても気づけなくなるため。
    */
   const walk = (id) => tap(`.place[data-place="${id}"]:not([disabled])`);
-  /** 物語欄が消えるまで（stopAtEnd なら全文が出たところで）読み進める */
+  /**
+   * 物語欄が消えるまで（stopAtEnd なら全文が出たところで）読み進める。
+   * 読み終えたかは「つづける」が消えたことで見る。
+   * 読み終えたあとの文字は場面によって変わる（もどる／灯を見る）ため。
+   */
   const read = async (stopAtEnd = false) => {
     for (let i = 0; i < 40; i++) {
       if ((await page.locator('.story').count()) === 0) return;
-      if (stopAtEnd && (await page.locator('.story-next').innerText()).includes('もどる')) return;
+      if (stopAtEnd && !(await page.locator('.story-next').innerText()).includes('つづける')) return;
       await tap('.story');
     }
   };
@@ -113,6 +117,27 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
 
   await tap('.button.is-quiet');
   await shot('10-note');
+  /* ノートの「閉じる」。一覧の中ではなく、その外にある一枚を掴む */
+  await tap('.note > .button');
+
+  // 三つの扉を開いたので、井戸の先の霧の底が開いている
+  await walk('loom');
+  await walk('square');
+  await walk('well');
+  await walk('fog-bottom');
+  await read(true);
+  await shot('11-fog-bottom');
+  await read();
+  await shot('12-fog-actions');
+
+  // 灯を見る。ここが終わり
+  await tap('.button.is-lit');
+  await read(true);
+  await shot('13-ending-lines');
+  await read();
+  // 灯の名はゆっくり浮かび上がる。撮るのは浮かび切ってから
+  await page.waitForTimeout(1800);
+  await shot('14-ending');
 
   await browser.close();
 })();

@@ -1,4 +1,7 @@
 import type {
+  AxisShift,
+  Ending,
+  EndingId,
   Fragment,
   FragmentId,
   Gate,
@@ -82,6 +85,21 @@ export function gatesAhead(world: World, state: GameState): Gate[] {
     .filter((g): g is Gate => g !== undefined && !state.openedGateIds.includes(g.id));
 }
 
+/** 町の扉をすべて開いたか。終幕はこれを満たすまで開かない */
+export function allGatesOpened(world: World, state: GameState): boolean {
+  return world.gates.every((g) => state.openedGateIds.includes(g.id));
+}
+
+/**
+ * いま入れない場所か。閉じた扉の向こうと、条件の満たない終幕をまとめて指す。
+ * 「閉ざされている」の描き分けを UI が自前で組み立てずに済むよう、ここに置く。
+ */
+export function isSealed(world: World, state: GameState, placeId: PlaceId): boolean {
+  if (placeId === world.finale) return !allGatesOpened(world, state);
+  const gate = gateGuarding(world, placeId);
+  return gate !== undefined && !state.openedGateIds.includes(gate.id);
+}
+
 /**
  * そこへ歩けるか。UI 側の不備でルールが破られないよう、判定はここに一本化する。
  * 扉の向こうへは、その扉を開くまで行けない。
@@ -91,8 +109,7 @@ export function canMove(world: World, state: GameState, to: PlaceId): boolean {
   if (!place) return false;
   if (!findPlace(world, to)) return false;
   if (!place.links.includes(to)) return false;
-  const gate = gateGuarding(world, to);
-  return !gate || state.openedGateIds.includes(gate.id);
+  return !isSealed(world, state, to);
 }
 
 /**
@@ -171,6 +188,71 @@ export function collectedFragments(world: World, state: GameState): Fragment[] {
   return state.fragmentIds
     .map((id) => findFragment(world, id))
     .filter((f): f is Fragment => f !== undefined);
+}
+
+/**
+ * 扉に置いてきた一枚ずつを、そのつど軸に畳んだもの。
+ * GameState には持たせない導出値にしてある。集計ではなく選択そのものを記録しておけば、
+ * 軸の重み（shift）を後から書き換えても、過去の記録の意味が変わらないため。
+ */
+export function axes(world: World, state: GameState): AxisShift {
+  return state.gateChoices.reduce<AxisShift>(
+    (sum, choice) => {
+      const gate = findGate(world, choice.gateId);
+      if (!gate) return sum;
+      const { shift } = gateResponse(gate, choice.fragmentId);
+      return {
+        distance: sum.distance + shift.distance,
+        certainty: sum.certainty + shift.certainty,
+      };
+    },
+    { distance: 0, certainty: 0 },
+  );
+}
+
+/**
+ * 矛盾を矛盾のまま抱えてきたか。
+ * 町の言葉をすべて拾ったうえで、どの戸の前でも「間に架ける第三の一枚」を出さず、
+ * 突きつけられた二枚のうちの片方をそのまま置いた場合を指す。
+ */
+export function heldContradiction(world: World, state: GameState): boolean {
+  if (!world.fragments.every((f) => state.fragmentIds.includes(f.id))) return false;
+  if (!allGatesOpened(world, state)) return false;
+  return state.gateChoices.every((choice) => {
+    const gate = findGate(world, choice.gateId);
+    return gate !== undefined && gate.tension.includes(choice.fragmentId);
+  });
+}
+
+/**
+ * どの終幕を引くか。
+ * 優劣ではなく、どこへ振れたかで分ける。振れなかったこと（0）もひとつの終幕として持つ。
+ *
+ * 境界を専用のエンドに逃がしてあるのは、「孤独でも関わりでもなかった」を孤独の側に
+ * 丸めないため。どちらの軸で止まっても同じ終幕へ行くので、
+ * その文では止まった軸を名指ししない（endings.ts の e-halfway を参照）。
+ *
+ * 終幕の場所まで歩けた状態、つまり扉をすべて開いた状態で呼ばれることを前提にしている。
+ * 途中の状態で呼ぶと、まだ振れていない軸が 0 のまま e-halfway が返る。
+ */
+export function resolveEndingId(world: World, state: GameState): EndingId {
+  if (heldContradiction(world, state)) return 'e-nameless';
+  return endingOfAxes(axes(world, state));
+}
+
+/**
+ * 振れた向きだけで決まる終幕。
+ * 矛盾を抱えたままの一つは軸では決まらないので、resolveEndingId が先に見ている。
+ */
+export function endingOfAxes({ distance, certainty }: AxisShift): EndingId {
+  if (distance === 0 || certainty === 0) return 'e-halfway';
+  if (distance < 0) return certainty > 0 ? 'e-lighthouse' : 'e-fog';
+  return certainty > 0 ? 'e-weaver' : 'e-square';
+}
+
+/** 終幕そのもの。endings は EndingId をすべて埋めた Record なので、必ず実体が返る */
+export function resolveEnding(world: World, state: GameState): Ending {
+  return world.endings[resolveEndingId(world, state)];
 }
 
 /** 双方向の道を一本ずつに畳んだもの。マップを描くための導出値 */
