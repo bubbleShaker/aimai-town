@@ -25,8 +25,10 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
   /**
    * マップの灯を場所の id で選んで歩く。
    * 名前は訪れるまで「？」なので、表示名では掴めない。
+   * :not([disabled]) を付けているのは、force click が
+   * 「歩けない灯を叩いて素通り」してしまい、道が壊れても気づけなくなるため。
    */
-  const walk = (id) => tap(`.place[data-place="${id}"]`);
+  const walk = (id) => tap(`.place[data-place="${id}"]:not([disabled])`);
   /** 物語欄が消えるまで（stopAtEnd なら全文が出たところで）読み進める */
   const read = async (stopAtEnd = false) => {
     for (let i = 0; i < 40; i++) {
@@ -57,8 +59,10 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
     await read();
     await tap('.button >> nth=0');
     await read();
-    if (place !== 'bridge') await walk('square');
-    await read();
+    if (place !== 'bridge') {
+      await walk('square');
+      await read();
+    }
   }
 
   // 橋の先の戸に、増えた手持ちのまま向き合う（あふれても選べることの確認）
@@ -88,11 +92,22 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
   await tap('.gate-hand .button >> nth=0');
   await read();
 
+  // 扉の向こうにも入って、そこでしか拾えない断片まで手に入れる
+  await walk('tavern-back');
+  await read();
+  await tap('.button >> nth=0');
+  await read();
+  await walk('tavern');
   await walk('square');
   await walk('loom');
+  await read();
   await tap('.button.is-gate');
   await read();
   await tap('.gate-hand .button >> nth=0');
+  await read();
+  await walk('loom-inner');
+  await read();
+  await tap('.button >> nth=0');
   await read();
   await shot('09-map');
 

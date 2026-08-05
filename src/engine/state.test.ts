@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
 import type { FragmentId, Gate, PlaceId } from '../scenario/types';
+import type { GameState } from './state';
 import {
   canMove,
   collectedFragments,
@@ -8,6 +9,7 @@ import {
   findFragment,
   findGate,
   findPlace,
+  gateGuarding,
   gateResponse,
   gatesAhead,
   pendingGrants,
@@ -135,13 +137,24 @@ describe('扉', () => {
     expect(reduce(s, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId: 'f-approval' }, world)).toBe(s);
   });
 
+  /**
+   * どの扉も、そこへ着くまでに拾える一枚ならどれでも開く。
+   * 扉を足したら自動で網にかかるよう、世界にある扉すべてを歩いて確かめる。
+   * これが落ちたら、仕様ではなく企画（正解を用意しない）が壊れたと考える。
+   */
   it('どの断片を差し出しても扉は開き、選択が記録される', () => {
-    const before = atLoom();
-    for (const fragmentId of before.fragmentIds) {
-      const after = reduce(before, { type: 'OPEN_GATE', gateId: 'g-work', fragmentId }, world);
-      expect(after.openedGateIds).toEqual(['g-work']);
-      expect(after.gateChoices).toEqual([{ gateId: 'g-work', fragmentId }]);
-      expect(canMove(world, after, 'loom-inner')).toBe(true);
+    for (const gate of world.gates) {
+      const before = walkTo(gate);
+      // 実際に歩いて集めた手札が、机上の「持ちうる断片」と一致することも同時に見る
+      expect([...before.fragmentIds].sort()).toEqual([...fragmentsObtainableBefore(gate)].sort());
+      expect(gatesAhead(world, before).map((g) => g.id)).toContain(gate.id);
+
+      for (const fragmentId of before.fragmentIds) {
+        const after = reduce(before, { type: 'OPEN_GATE', gateId: gate.id, fragmentId }, world);
+        expect(after.openedGateIds, `${gate.id} が ${fragmentId} で開かない`).toContain(gate.id);
+        expect(after.gateChoices.at(-1)).toEqual({ gateId: gate.id, fragmentId });
+        expect(canMove(world, after, gate.beyond)).toBe(true);
+      }
     }
   });
 
@@ -159,16 +172,6 @@ describe('扉', () => {
     s = reduce(s, { type: 'MOVE', to: 'tavern' }, world);
     return reduce(s, { type: 'FINISH_TALK', talkId: 't-regular' }, world);
   }
-
-  it('酒場の扉も、手前で拾った断片だけで開く', () => {
-    const before = atTavern();
-    expect(gatesAhead(world, before).map((g) => g.id)).toEqual(['g-chat']);
-    for (const fragmentId of before.fragmentIds) {
-      const after = reduce(before, { type: 'OPEN_GATE', gateId: 'g-chat', fragmentId }, world);
-      expect(after.gateChoices).toEqual([{ gateId: 'g-chat', fragmentId }]);
-      expect(canMove(world, after, 'tavern-back')).toBe(true);
-    }
-  });
 
   it('扉は互いに独立していて、片方を開いても他方は閉じたまま', () => {
     const s = reduce(atTavern(), { type: 'OPEN_GATE', gateId: 'g-chat', fragmentId: 'f-bonding' }, world);
@@ -231,27 +234,18 @@ describe('世界の整合性', () => {
     }
   });
 
-  /**
-   * その扉の前に立つ時点で、手にしていることがありうる断片。
-   *
-   * どの扉も一枚差し出せば開き、その一枚は開始地点で必ず手に入るので、
-   * 他の扉はすべて通れるものとして数える。
-   * 除くのは、この扉の向こうを通らなければ届かない断片だけ。
-   * つまり「持っているのに差し出す先が無い死に札」を作らないための一覧でもある。
-   */
-  function fragmentsObtainableBefore(gate: Gate): Set<FragmentId> {
-    const seen = new Set<PlaceId>([world.start]);
-    const queue: PlaceId[] = [world.start];
-    while (queue.length > 0) {
-      const place = findPlace(world, queue.shift()!)!;
-      for (const to of place.links) {
-        if (seen.has(to) || to === gate.beyond) continue;
-        seen.add(to);
-        queue.push(to);
-      }
+  it('どの断片にも、それを受け取る扉が少なくともひとつある', () => {
+    for (const fragment of world.fragments) {
+      const takers = world.gates.filter((g) => g.responses[fragment.id]);
+      expect(takers.length, `${fragment.id} は、どの扉にも差し出せない死に札になっている`).toBeGreaterThan(0);
     }
-    return new Set([...seen].flatMap((id) => findPlace(world, id)!.talks.flatMap((t) => t.grants)));
-  }
+  });
+
+  it('開始地点で、扉を開くための一枚が手に入る', () => {
+    // 「他の扉は通れるものとして数える」という上の前提は、これが成り立つことに乗っている
+    const granted = findPlace(world, world.start)!.talks.flatMap((t) => t.grants);
+    expect(granted.length, '開始地点で断片が手に入らないと、どの扉も開けられない').toBeGreaterThan(0);
+  });
 
   it('扉が突きつける二枚は、その扉に着くまでに手に入る', () => {
     for (const gate of world.gates) {
@@ -310,3 +304,89 @@ describe('世界の整合性', () => {
     }
   });
 });
+
+/**
+ * その扉の前に立つ時点で、手にしていることがありうる断片。
+ *
+ * どの扉も一枚差し出せば開き、その一枚は開始地点で必ず手に入る（上のテストで縛ってある）。
+ * だから他の扉はすべて通れるものとして数え、除くのは
+ * この扉の向こうを通らなければ届かない断片だけになる。
+ */
+function fragmentsObtainableBefore(gate: Gate): Set<FragmentId> {
+  const seen = new Set<PlaceId>([world.start]);
+  const queue: PlaceId[] = [world.start];
+  while (queue.length > 0) {
+    const place = findPlace(world, queue.shift()!)!;
+    for (const to of place.links) {
+      if (seen.has(to) || to === gate.beyond) continue;
+      seen.add(to);
+      queue.push(to);
+    }
+  }
+  return new Set([...seen].flatMap((id) => findPlace(world, id)!.talks.flatMap((t) => t.grants)));
+}
+
+/**
+ * その扉の手前まで、実際に歩いて拾えるものを拾った状態を作る。
+ * 机上の集合（fragmentsObtainableBefore）ではなく engine を通すので、
+ * 「そう歩ける道が本当にあるか」までここで確かめられる。
+ * 目当ての扉だけは開けずに残し、途中の扉は手持ちの一枚で開けて通り抜ける。
+ */
+function walkTo(gate: Gate): GameState {
+  let state = createInitialState(world);
+  const visited = new Set<PlaceId>([world.start]);
+
+  // 行って戻る形で町を辿る。MOVE は隣へしか動けないので、来た道を必ず引き返す
+  function explore(from: PlaceId) {
+    for (const talk of findPlace(world, from)!.talks) {
+      state = reduce(state, { type: 'FINISH_TALK', talkId: talk.id }, world);
+    }
+    for (const to of findPlace(world, from)!.links) {
+      if (visited.has(to) || to === gate.beyond) continue;
+      visited.add(to);
+      const guard = gateGuarding(world, to);
+      if (guard) {
+        // 途中の扉は、そのとき手にしている一枚で開ける（どの一枚でも開く）
+        state = reduce(
+          state,
+          { type: 'OPEN_GATE', gateId: guard.id, fragmentId: state.fragmentIds[0] },
+          world,
+        );
+      }
+      state = reduce(state, { type: 'MOVE', to }, world);
+      explore(to);
+      state = reduce(state, { type: 'MOVE', to: from }, world);
+    }
+  }
+
+  explore(world.start);
+
+  // 最後に、扉の手前の場所まで歩いて立つ
+  const front = world.places.find((p) => p.links.includes(gate.beyond))!;
+  for (const step of pathTo(front.id, state, gate.beyond)) {
+    state = reduce(state, { type: 'MOVE', to: step }, world);
+  }
+  return state;
+}
+
+/** 開始地点から目的地までの道順。閉じたままの扉と、避けたい場所は通らない */
+function pathTo(goal: PlaceId, state: GameState, avoid: PlaceId): PlaceId[] {
+  const cameFrom = new Map<PlaceId, PlaceId>();
+  const queue: PlaceId[] = [world.start];
+  const seen = new Set<PlaceId>([world.start]);
+  while (queue.length > 0) {
+    const here = queue.shift()!;
+    if (here === goal) break;
+    for (const to of findPlace(world, here)!.links) {
+      const guard = gateGuarding(world, to);
+      if (seen.has(to) || to === avoid) continue;
+      if (guard && !state.openedGateIds.includes(guard.id)) continue;
+      seen.add(to);
+      cameFrom.set(to, here);
+      queue.push(to);
+    }
+  }
+  const path: PlaceId[] = [];
+  for (let at = goal; at !== world.start; at = cameFrom.get(at)!) path.unshift(at);
+  return path;
+}
