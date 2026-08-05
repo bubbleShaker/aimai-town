@@ -13,6 +13,7 @@ import {
   pendingGrants,
   reduce,
   resolveEnding,
+  trace,
 } from '../engine/state';
 import type { GameState } from '../engine/state';
 import { EndingView } from './EndingView';
@@ -21,6 +22,7 @@ import { MapView } from './MapView';
 import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
 import type { ShownLine } from './StoryView';
+import { TraceView } from './TraceView';
 
 /**
  * 画面の状態。ゲームの進行そのもの（GameState）とは分けて持つ。
@@ -32,7 +34,8 @@ type Scene =
   | { kind: 'reading'; lines: ShownLine[]; shown: number; then: AfterReading }
   | { kind: 'choosing'; gate: Gate }
   | { kind: 'note' }
-  | { kind: 'ending'; ending: Ending };
+  | { kind: 'ending'; ending: Ending }
+  | { kind: 'trace' };
 
 /**
  * 読み終えたときに何が起きるか。
@@ -46,20 +49,37 @@ type AfterReading =
   | { kind: 'openGate'; gate: Gate; fragmentId: FragmentId }
   | { kind: 'ending'; ending: Ending };
 
-export function Game() {
-  const [state, setState] = useState<GameState>(() => createInitialState(world));
-  const [scene, setScene] = useState<Scene>(() => ({
+/** 町を畳んで手もとだけを見せる場面。戸の前と、終わったあと */
+const FACING: Scene['kind'][] = ['choosing', 'ending', 'trace'];
+
+/** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
+function opening(): Scene {
+  return {
     kind: 'reading',
     lines: findPlace(world, world.start)!.arrival,
     shown: 1,
     then: { kind: 'idle' },
-  }));
+  };
+}
+
+export function Game() {
+  const [state, setState] = useState<GameState>(() => createInitialState(world));
+  const [scene, setScene] = useState<Scene>(opening);
 
   const place = findPlace(world, state.currentPlaceId)!;
   const pendingGates = gatesAhead(world, state);
 
   function read(lines: ShownLine[], then: AfterReading = { kind: 'idle' }) {
     setScene({ kind: 'reading', lines, shown: 1, then });
+  }
+
+  /**
+   * はじめから歩き直す。集めた断片も、戸に置いた選択もすべて流す。
+   * 周回に何かを持ち越すのは M5 の話なので、ここでは何も引き継がない。
+   */
+  function restart() {
+    setState(createInitialState(world));
+    setScene(opening());
   }
 
   function move(to: PlaceId) {
@@ -128,7 +148,7 @@ export function Game() {
 
   return (
     /* 戸に向き合っているあいだと終幕は、町を畳んで手もとだけを見せる */
-    <div className={scene.kind === 'choosing' || scene.kind === 'ending' ? 'game is-facing' : 'game'}>
+    <div className={FACING.includes(scene.kind) ? 'game is-facing' : 'game'}>
       <MapView world={world} state={state} onMove={scene.kind === 'idle' ? move : null} />
 
       <div className="panel">
@@ -201,7 +221,13 @@ export function Game() {
           />
         )}
 
-        {scene.kind === 'ending' && <EndingView ending={scene.ending} />}
+        {scene.kind === 'ending' && (
+          <EndingView ending={scene.ending} onLookBack={() => setScene({ kind: 'trace' })} />
+        )}
+
+        {scene.kind === 'trace' && (
+          <TraceView traces={trace(world, state)} onRestart={restart} />
+        )}
       </div>
     </div>
   );

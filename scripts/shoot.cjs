@@ -139,5 +139,16 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
   await page.waitForTimeout(1800);
   await shot('14-ending');
 
+  // 置いてきたものを振り返る。末尾まで送って、締めの一行まで出ることを見る
+  await tap('.ending-back');
+  await shot('15-trace');
+  await page.locator('.trace-body').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await page.waitForTimeout(220);
+  await shot('16-trace-end');
+
+  // はじめから歩き直すと、町の入口へ戻る
+  await tap('.trace > .button');
+  await shot('17-restart');
+
   await browser.close();
 })();
