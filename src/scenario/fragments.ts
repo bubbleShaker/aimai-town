@@ -46,4 +46,14 @@ export const fragments: Fragment[] = [
     text: '輪の外にいても、輪の音は聞こえる',
     source: '酒場の裏の壁越し',
   },
+  {
+    id: 'f-cannot-alone',
+    text: '渡る先がないなら、それは橋ではない',
+    source: '橋を渡る人',
+  },
+  {
+    id: 'f-keeper',
+    text: '足りている。それだけの話だ',
+    source: '灯台守の火のそば',
+  },
 ];

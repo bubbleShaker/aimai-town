@@ -82,6 +82,24 @@ export const gates: Gate[] = [
         ],
         shift: { distance: -1, certainty: -1 },
       },
+      'f-cannot-alone': {
+        lines: [
+          { speaker: '戸', text: '橋の言葉を、機の前で言うか' },
+          { text: 'あなたは言う。布も、着る人がいて布になる。' },
+          { speaker: '戸', text: 'では、織っているあいだのそれは何だ' },
+          { text: '答えの出ないうちに、戸は開いた。' },
+        ],
+        shift: { distance: 1, certainty: 0 },
+      },
+      'f-keeper': {
+        lines: [
+          { speaker: '戸', text: '足りている者が、なぜ機を回す' },
+          { text: '機の音は、答えのように続いている。' },
+          { speaker: '戸', text: '……足りていても、手は動くか' },
+          { text: '戸は開いた。誰も振り向かなかった。' },
+        ],
+        shift: { distance: -1, certainty: 1 },
+      },
     },
     fallback: {
       lines: [
@@ -170,12 +188,134 @@ export const gates: Gate[] = [
         ],
         shift: { distance: 1, certainty: 1 },
       },
+      'f-cannot-alone': {
+        lines: [
+          { speaker: '戸', text: '橋の言葉だな。ここにも通る' },
+          { text: 'あなたは、卓に残してきた杯を思い出す。' },
+          { speaker: '戸', text: '出ていく先が無ければ、これはただの壁だ' },
+          { text: '戸が開き、裏手の暗さが見えた。' },
+        ],
+        shift: { distance: 1, certainty: 0 },
+      },
+      'f-keeper': {
+        lines: [
+          { speaker: '戸', text: '足りている者が、この卓に着いていたか' },
+          { text: 'あなたは、灯台の話を誰にもしていない。' },
+          { speaker: '戸', text: 'そういう者ほど、長く話す' },
+          { text: '戸は開いた。裏手には、聞く者もいない。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
     },
     fallback: {
       lines: [
         { speaker: '戸', text: '妙なものを、框に挟んでいったな' },
         { speaker: '戸', text: 'まあ、先の二枚もずいぶん古い' },
         { text: '戸は、建て付けの悪い音を立てて開いた。' },
+      ],
+      shift: { distance: 0, certainty: 0 },
+    },
+  },
+  {
+    id: 'g-happiness',
+    name: '灯台の戸',
+    beyond: 'lighthouse',
+    tension: ['f-solitude', 'f-cannot-alone'],
+    prologue: [
+      { text: '橋を渡り切ると、戸がひとつ立っている。' },
+      { text: '錆びた板に、二つの言葉が残っている。' },
+      { speaker: '戸', text: 'この先には、誰もおらん' },
+      { speaker: '戸', text: 'それでも行くなら、その間に一枚置け' },
+    ],
+    responses: {
+      'f-solitude': {
+        lines: [
+          { speaker: '戸', text: 'ならば、なぜここまで歩いてきた' },
+          { text: 'あなたは言う。確かめに来た。' },
+          { speaker: '戸', text: '確かめる相手が、要るのだな' },
+          { text: '戸は開いた。風の音だけが残った。' },
+        ],
+        shift: { distance: -2, certainty: 1 },
+      },
+      'f-cannot-alone': {
+        lines: [
+          { speaker: '戸', text: 'では、この橋の先には何がある' },
+          { text: 'あなたは、高いところの火を見上げる。' },
+          { speaker: '戸', text: '灯は、見る者がいるから灯なのか' },
+          { speaker: '戸', text: '……守は、そうは言うまいがな' },
+          { text: '戸が開いた。' },
+        ],
+        shift: { distance: 2, certainty: 0 },
+      },
+      'f-approval': {
+        lines: [
+          { speaker: '戸', text: 'その火を、ここまで持ってきたか' },
+          { text: '灯台の火は、あなたの灯よりずっと大きい。' },
+          { speaker: '戸', text: '大きい火は、誰にも消させんぞ' },
+          { text: '戸は、思いのほか静かに開いた。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
+      'f-empty-time': {
+        lines: [
+          { speaker: '戸', text: 'ここには、用事がひとつも無い' },
+          { text: '波の音は、数えられるほど間が空いている。' },
+          { speaker: '戸', text: '空虚だと言うなら、引き返せ' },
+          { text: 'あなたは引き返さなかった。戸が開いた。' },
+        ],
+        shift: { distance: -1, certainty: -1 },
+      },
+      'f-autonomy': {
+        lines: [
+          { speaker: '戸', text: 'その手で、誰の灯も点けずに済むか' },
+          { text: 'あなたは答えず、手のひらを見る。' },
+          { speaker: '戸', text: '守は、毎晩ひとつだけ点けている' },
+          { text: '戸が開いた。' },
+        ],
+        shift: { distance: -1, certainty: 1 },
+      },
+      'f-respect': {
+        lines: [
+          { speaker: '戸', text: 'ここに、隣は無いぞ' },
+          { text: '霧のせいで、向こう岸も見えない。' },
+          { speaker: '戸', text: '合わせる相手が消えたとき、手はどう動く' },
+          { text: '答えの代わりに、戸が開いた。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
+      'f-cloth': {
+        lines: [
+          { speaker: '戸', text: 'その布を、ここで着るのか' },
+          { text: '風は冷たく、布は確かに厚い。' },
+          { speaker: '戸', text: '織った者は、ここにはおらんな' },
+          { text: '戸は開いた。布は、あなたの肩にある。' },
+        ],
+        shift: { distance: 1, certainty: 0 },
+      },
+      'f-bonding': {
+        lines: [
+          { speaker: '戸', text: '守は、話し相手を欲しがらん' },
+          { speaker: '戸', text: '……本人は、そう言っている' },
+          { text: '上から、独り言にしては長い声が降りてくる。' },
+          { text: '戸は、いつのまにか開いていた。' },
+        ],
+        shift: { distance: 2, certainty: -1 },
+      },
+      'f-noise': {
+        lines: [
+          { speaker: '戸', text: 'ここまで来ると、町の音は届かん' },
+          { text: '耳を澄ませても、水の音しかしない。' },
+          { speaker: '戸', text: 'それでも、聞こえるつもりでいるのか' },
+          { text: '戸が開いた。風だけが、確かに鳴っている。' },
+        ],
+        shift: { distance: -2, certainty: -1 },
+      },
+    },
+    fallback: {
+      lines: [
+        { speaker: '戸', text: 'こんなところまで、それを持ってきたか' },
+        { speaker: '戸', text: '板の字は、もう読めぬがな' },
+        { text: '戸は、風に押されるように開いた。' },
       ],
       shift: { distance: 0, certainty: 0 },
     },

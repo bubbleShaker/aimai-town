@@ -19,7 +19,7 @@ export const places: Place[] = [
       { text: 'だから顔だけが、いくつも浮かんで見える。' },
       { text: 'それぞれの手もとに、色の違う灯がひとつずつ。' },
     ],
-    links: ['loom', 'well', 'tavern'],
+    links: ['loom', 'well', 'tavern', 'bridge'],
     talks: [
       {
         id: 't-child',
@@ -179,6 +179,65 @@ export const places: Place[] = [
           { text: '戻らなくても、たぶん誰も気づかない。' },
         ],
         grants: ['f-noise'],
+      },
+    ],
+  },
+  {
+    id: 'bridge',
+    name: '橋',
+    x: 74,
+    y: 40,
+    arrival: [
+      { text: '橋の下では、水が音だけになって流れている。' },
+      { text: '向こう岸は、霧で見えない。' },
+      { text: 'それでも、橋は架かっている。' },
+      { text: '渡り切った先に、灯がひとつ、高く見える。' },
+    ],
+    links: ['square', 'lighthouse'],
+    talks: [
+      {
+        id: 't-crosser',
+        label: '渡る人に話しかける',
+        lines: [
+          { speaker: '渡る人', text: 'すまない、止まれないんだ' },
+          { text: '足音はこちらへ来て、そのまま過ぎていく。' },
+          { speaker: '渡る人', text: '向こうに、待っている者がいる' },
+          { text: 'あなたは訊く。誰もいなかったら、渡りますか。' },
+          { speaker: '渡る人', text: '……渡らないな' },
+          { speaker: '渡る人', text: '渡る先があるから、これは橋なんだ' },
+          { text: '足音は霧に入り、聞こえなくなった。' },
+        ],
+        grants: ['f-cannot-alone'],
+      },
+    ],
+  },
+  {
+    id: 'lighthouse',
+    name: '灯台',
+    /* 右端に寄せすぎると、絶対配置の幅が足りず名前が折り返す。x は 84 まで */
+    x: 84,
+    y: 13,
+    arrival: [
+      { text: '灯台の火は、町のどの灯より大きい。' },
+      { text: 'そして、町のどこからも遠い。' },
+    ],
+    links: ['bridge'],
+    talks: [
+      {
+        id: 't-keeper',
+        label: '灯台守に話しかける',
+        lines: [
+          { speaker: '灯台守', text: 'よく来た。まあ、掛けなさい' },
+          { speaker: '灯台守', text: 'わたしは誰の火も借りていない' },
+          { speaker: '灯台守', text: '見せるために燃やしてもいない' },
+          { text: '火は、霧の遠くまで届いている。' },
+          { speaker: '灯台守', text: '足りているのだ。それだけの話でな' },
+          { text: 'あなたは頷いて、帰ろうと立ち上がる。' },
+          { speaker: '灯台守', text: '……もう少し、いいだろう' },
+          { speaker: '灯台守', text: 'この話は、まだ途中だ' },
+          { text: '火は、さっきと同じ明るさで燃えている。' },
+        ],
+        grants: ['f-keeper'],
       },
     ],
   },
