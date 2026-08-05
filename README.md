@@ -24,8 +24,11 @@ https://bubbleshaker.github.io/aimai-town/
 npm install
 npm run dev     # 開発サーバ
 npm test        # engine の単体テスト
+npm run lint
 npm run build   # 型チェックとビルド
 ```
+
+`master` に入ると GitHub Actions がこの三つを回し、通れば自動で公開される。
 
 スマホ幅での見た目を確認する（開発サーバを起動した状態で）:
 

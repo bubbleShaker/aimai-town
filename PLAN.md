@@ -92,7 +92,7 @@ GitHub Pages 公開: https://bubbleshaker.github.io/aimai-town/
 
 ## 4. 技術構成
 
-- Vite + React + TypeScript / GitHub Pages（`gh-pages` ブランチ or Actions）
+- Vite + React + TypeScript / GitHub Pages（Actions でビルドしてデプロイ。`master` に入ると公開される）
 - スマホ縦持ち・タップ前提の **DOM ベース UI**（Canvas は使わない。テキストが主役のため）
 - セーブは `localStorage`
 - **シナリオデータとエンジンを完全分離**する。
