@@ -92,7 +92,7 @@ GitHub Pages 公開: https://bubbleshaker.github.io/aimai-town/
 
 ## 4. 技術構成
 
-- Vite + React + TypeScript / GitHub Pages（`gh-pages` ブランチ or Actions）
+- Vite + React + TypeScript / GitHub Pages（Actions でビルドしてデプロイ。`master` に入ると公開される）
 - スマホ縦持ち・タップ前提の **DOM ベース UI**（Canvas は使わない。テキストが主役のため）
 - セーブは `localStorage`
 - **シナリオデータとエンジンを完全分離**する。
@@ -114,6 +114,7 @@ src/
 - [x] **M2a** 扉の仕組みと最初の扉（仕事の扉）… #3 / PR #4
 - [x] **M2b** 残る二つの扉と、そのための場所・住人（酒場・橋・灯台）… #5
 - [x] **M3a** 終幕の場所「霧の底」と、軸の集計・エンディング分岐… #7
+- [x] **公開** GitHub Pages に出す（M4 から前倒し）… #9
 - [ ] **M3b** エンドロール（扉に何を置いたかの軌跡）と、始め直し
-- [ ] **M4** 演出（霧・灯・文字送り）とセーブ、GitHub Pages 公開
+- [ ] **M4** 演出（霧・灯・文字送り）とセーブ
 - [ ] **M5** 周回要素（既読スキップ、集めた断片の一覧＝思索のノート）

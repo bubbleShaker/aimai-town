@@ -1,0 +1,57 @@
+# 町を公開する。master に入ったものが https://bubbleshaker.github.io/aimai-town/ になる。
+# テストを通過儀礼にしているのは、engine のテストが企画そのものを担保しているため
+# （「どの断片を差し出しても扉は開く」「六つの終幕すべてに至る道がある」など）。
+# 落ちたときに出ていくのは、仕様ではなく企画が壊れた町になる。
+#
+# 入る前の検査は check.yml（PR で回る）。ここは出す係。
+name: deploy
+
+on:
+  push:
+    branches: [master]
+  # 直せるものが無くても、手で出し直せるようにしておく
+  workflow_dispatch:
+
+# 既定は読むだけ。公開のための書き込みは deploy ジョブにだけ渡す。
+# ビルドは npm ci でよそのコードを走らせる場所なので、そこに公開の権限を置かない
+permissions:
+  contents: read
+
+# 公開は一本ずつ。走っているものは出し切り、待たせるのは最後の master だけにする
+# （途中で畳むと、公開が中途半端なところで止まりうる）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      # deploy-pages が Pages に名乗るための短命なトークン。長命の秘密を持ち回らずに済む
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
