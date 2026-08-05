@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
-import type { EndingId, FragmentId, Gate, GateId, PlaceId, TalkId } from '../scenario/types';
+import type {
+  AxisShift,
+  EndingId,
+  FragmentId,
+  Gate,
+  GateId,
+  PlaceId,
+  TalkId,
+} from '../scenario/types';
 import type { GameState } from './state';
 import {
   allGatesOpened,
   axes,
   canMove,
+  endingOfAxes,
   collectedFragments,
   createInitialState,
   findFragment,
@@ -254,15 +263,48 @@ describe('終幕', () => {
    * 落ちたら「引けない終幕」＝書いたのに誰も読めない文があることになる。
    */
   it('六つの終幕すべてに、そこへ至る遊び方が実在する', () => {
-    const reached = new Map<EndingId, FragmentId[]>();
-    for (const state of everyPlaythrough()) {
-      reached.set(
-        resolveEndingId(world, state),
-        state.gateChoices.map((c) => c.fragmentId),
-      );
-    }
+    const reached = new Set<EndingId>();
+    for (const state of everyPlaythrough()) reached.add(resolveEndingId(world, state));
     const missing = Object.keys(world.endings).filter((id) => !reached.has(id as EndingId));
     expect(missing, `どう遊んでも引けない終幕がある: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  /**
+   * 総当たりが痩せていないこと。
+   * 扉の前で持っていない一枚を指定した組み合わせは数えないので、
+   * 順路がずれて手札が減ると、六つ揃ったまま静かに検査が薄くなる。
+   */
+  it('総当たりが、扉の前の手札をすべて試している', () => {
+    const tried = new Map<GateId, Set<FragmentId>>(world.gates.map((g) => [g.id, new Set()]));
+    let count = 0;
+    for (const state of everyPlaythrough()) {
+      count++;
+      for (const choice of state.gateChoices) tried.get(choice.gateId)!.add(choice.fragmentId);
+    }
+    const sizes = world.gates.map((g) => `${g.id}: ${tried.get(g.id)!.size}`);
+    // playThrough の順路では、扉の前までに 機屋 4 枚・酒場 6 枚・灯台 9 枚 を拾っている。
+    // 順路を継ぎ足したらこの数も変わる。変えずに減っていたら、道が痩せている
+    expect(count, `扉ごとに置けた一枚 ${sizes.join(' / ')}`).toBe(4 * 6 * 9);
+  });
+
+  /**
+   * 振れた向きと、そこで灯る名の対応。
+   * id ではなく名で縛るので、判定の取り違えも、文の入れ違いも、ここで落ちる。
+   * 優劣の話ではなく対応の話なので、「正解を用意しない」には触れない。
+   */
+  it('振れた向きと、そこで灯る名が対応している', () => {
+    const table: [AxisShift, string][] = [
+      [{ distance: -2, certainty: 2 }, '灯台の灯'], // 孤独 × 確信
+      [{ distance: 2, certainty: 2 }, '織り手の手'], // 関わり × 確信
+      [{ distance: 2, certainty: -2 }, '広場の灯'], // 関わり × 曖昧
+      [{ distance: -2, certainty: -2 }, '霧のまま'], // 孤独 × 曖昧
+      [{ distance: 0, certainty: 3 }, 'なかばの灯'], // 距離で止まった
+      [{ distance: 3, certainty: 0 }, 'なかばの灯'], // 確信で止まった
+      [{ distance: 0, certainty: 0 }, 'なかばの灯'], // どちらでも止まった
+    ];
+    for (const [shift, name] of table) {
+      expect(world.endings[endingOfAxes(shift)].name, `${JSON.stringify(shift)} の灯`).toBe(name);
+    }
   });
 
   it('どう遊んでも、必ずひとつの終幕に落ちる', () => {

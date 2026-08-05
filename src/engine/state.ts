@@ -227,11 +227,24 @@ export function heldContradiction(world: World, state: GameState): boolean {
 /**
  * どの終幕を引くか。
  * 優劣ではなく、どこへ振れたかで分ける。振れなかったこと（0）もひとつの終幕として持つ。
- * 「孤独でも関わりでもなかった」を孤独の側に丸めないため、境界を専用のエンドに逃がしている。
+ *
+ * 境界を専用のエンドに逃がしてあるのは、「孤独でも関わりでもなかった」を孤独の側に
+ * 丸めないため。どちらの軸で止まっても同じ終幕へ行くので、
+ * その文では止まった軸を名指ししない（endings.ts の e-halfway を参照）。
+ *
+ * 終幕の場所まで歩けた状態、つまり扉をすべて開いた状態で呼ばれることを前提にしている。
+ * 途中の状態で呼ぶと、まだ振れていない軸が 0 のまま e-halfway が返る。
  */
 export function resolveEndingId(world: World, state: GameState): EndingId {
   if (heldContradiction(world, state)) return 'e-nameless';
-  const { distance, certainty } = axes(world, state);
+  return endingOfAxes(axes(world, state));
+}
+
+/**
+ * 振れた向きだけで決まる終幕。
+ * 矛盾を抱えたままの一つは軸では決まらないので、resolveEndingId が先に見ている。
+ */
+export function endingOfAxes({ distance, certainty }: AxisShift): EndingId {
   if (distance === 0 || certainty === 0) return 'e-halfway';
   if (distance < 0) return certainty > 0 ? 'e-lighthouse' : 'e-fog';
   return certainty > 0 ? 'e-weaver' : 'e-square';

@@ -117,7 +117,8 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
 
   await tap('.button.is-quiet');
   await shot('10-note');
-  await tap('.note .button');
+  /* ノートの「閉じる」。一覧の中ではなく、その外にある一枚を掴む */
+  await tap('.note > .button');
 
   // 三つの扉を開いたので、井戸の先の霧の底が開いている
   await walk('loom');
