@@ -1,4 +1,4 @@
-import type { Ending, EndingId } from './types';
+import type { Ending, EndingId, Line } from './types';
 
 /**
  * 終幕。霧の底の水面に、自分の灯が映る場面。
@@ -104,3 +104,10 @@ export const endings: Record<EndingId, Ending> = {
     ],
   },
 };
+
+/**
+ * 置いてきたものを読み終えたところに残る文。
+ * 締めであって、まとめではない。何を選んだかについては何も言わない。
+ * どの灯で終わっても同じ文にする（灯ごとに言い方を変えると優劣が生まれる）。
+ */
+export const closing: Line[] = [{ text: '霧は晴れない。町は、まだそこにある。' }];

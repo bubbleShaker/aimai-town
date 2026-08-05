@@ -113,4 +113,10 @@ export interface World {
   gates: Gate[];
   /** すべての EndingId に文があることを、型で要求する */
   endings: Record<EndingId, Ending>;
+  /**
+   * 灯の名を見たあと、置いてきたものの末尾に残る文。
+   * どの灯で終わっても同じことしか言わない（灯によって言い方を変えると、
+   * そこに優劣が生まれるため）。
+   */
+  closing: Line[];
 }

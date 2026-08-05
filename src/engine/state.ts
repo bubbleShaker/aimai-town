@@ -211,6 +211,52 @@ export function axes(world: World, state: GameState): AxisShift {
 }
 
 /**
+ * 戸の前でしたことを、一件ずつ実体に開いたもの。
+ * gateChoices は id しか持たないので、読み返すための形に起こすのはここでやる。
+ * UI が id から引き直して失敗する経路を作らないため、実体で返す。
+ *
+ * 並びは開いた順。歩いた順にそのまま読める。
+ * 消えた扉や断片を指す記録は落とす（世界データを書き換えても画面が壊れないようにする）。
+ */
+export function trace(world: World, state: GameState): GateTrace[] {
+  return state.gateChoices.flatMap((choice) => {
+    const gate = findGate(world, choice.gateId);
+    const offered = findFragment(world, choice.fragmentId);
+    if (!gate || !offered) return [];
+    return [
+      {
+        gate: { id: gate.id, name: gate.name },
+        tension: gateTension(world, gate),
+        offered,
+        // 突きつけられた二枚のどちらでもない一枚を置いたなら、間に橋を架けたことになる
+        bridged: !gate.tension.includes(offered.id),
+      },
+    ];
+  });
+}
+
+/**
+ * 軌跡に出す戸。名だけを持ち、Gate そのものは渡さない。
+ * Gate は返答ごとの軸の値（shift）を抱えているので、そのまま画面へ流すと
+ * 「プレイヤーには数値を見せない」が型の上で守られなくなる。
+ */
+export interface TracedGate {
+  id: GateId;
+  name: string;
+}
+
+/** 戸ひとつ分の軌跡。集計ではなく、その場で何を突きつけられ、何を置いたか */
+export interface GateTrace {
+  gate: TracedGate;
+  /** 突きつけられた二枚 */
+  tension: Fragment[];
+  /** 実際に置いた一枚 */
+  offered: Fragment;
+  /** 間に第三の一枚を架けたか。偽なら、突きつけられた片方をそのまま置いた */
+  bridged: boolean;
+}
+
+/**
  * 矛盾を矛盾のまま抱えてきたか。
  * 町の言葉をすべて拾ったうえで、どの戸の前でも「間に架ける第三の一枚」を出さず、
  * 突きつけられた二枚のうちの片方をそのまま置いた場合を指す。
@@ -218,10 +264,10 @@ export function axes(world: World, state: GameState): AxisShift {
 export function heldContradiction(world: World, state: GameState): boolean {
   if (!world.fragments.every((f) => state.fragmentIds.includes(f.id))) return false;
   if (!allGatesOpened(world, state)) return false;
-  return state.gateChoices.every((choice) => {
-    const gate = findGate(world, choice.gateId);
-    return gate !== undefined && gate.tension.includes(choice.fragmentId);
-  });
+  const walked = trace(world, state);
+  // 「架けなかった」の判定は trace に一本化する。エンドロールと終幕で読みが割れないようにするため。
+  // 読み起こせなかった記録が混じっていたら、そのまま抱えてきたとは言い切れない
+  return walked.length === state.gateChoices.length && walked.every((t) => !t.bridged);
 }
 
 /**

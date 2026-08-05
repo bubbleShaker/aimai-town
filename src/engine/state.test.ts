@@ -29,6 +29,7 @@ import {
   resolveEnding,
   resolveEndingId,
   roads,
+  trace,
 } from './state';
 
 describe('createInitialState', () => {
@@ -334,6 +335,84 @@ describe('終幕', () => {
   });
 });
 
+describe('軌跡', () => {
+  it('扉をひとつも開いていないうちは、振り返るものが無い', () => {
+    expect(trace(world, createInitialState(world))).toEqual([]);
+  });
+
+  it('開いた戸の数だけ、開いた順に並ぶ', () => {
+    const s = playThrough();
+    expect(trace(world, s).map((t) => t.gate.id)).toEqual(s.gateChoices.map((c) => c.gateId));
+    expect(trace(world, s)).toHaveLength(world.gates.length);
+  });
+
+  it('戸ごとに、突きつけられた二枚と置いた一枚が実体で残る', () => {
+    for (const t of trace(world, playThrough())) {
+      expect(t.tension).toHaveLength(2);
+      expect(t.tension.map((f) => f.id)).toEqual(findGate(world, t.gate.id)!.tension);
+      expect(t.offered.text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('軌跡は戸の名しか運ばない（軸の値を画面へ流さない）', () => {
+    for (const t of trace(world, playThrough())) {
+      expect(Object.keys(t.gate).sort()).toEqual(['id', 'name']);
+    }
+  });
+
+  it('置いた一枚が、記録された選択と食い違わない', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    const work = trace(world, s).find((t) => t.gate.id === 'g-work');
+    expect(work?.offered.id).toBe('f-approval');
+  });
+
+  it('突きつけられた片方をそのまま置いた戸は、架けたことにならない', () => {
+    const gate = world.gates[0];
+    const s = playThrough({ [gate.id]: gate.tension[0] });
+    const walked = trace(world, s).find((t) => t.gate.id === gate.id);
+    expect(walked?.bridged).toBe(false);
+  });
+
+  it('二枚のどちらでもない一枚を置いた戸は、架けたことになる', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    const work = trace(world, s).find((t) => t.gate.id === 'g-work');
+    // f-approval は仕事の戸が突きつける二枚のどちらでもない
+    expect(findGate(world, 'g-work')!.tension).not.toContain('f-approval');
+    expect(work?.bridged).toBe(true);
+  });
+
+  /**
+   * 軌跡の読みと終幕の判定が割れないこと。
+   * 「架けなかった」を二か所で別々に判定すると、名もなき灯を引いたのに
+   * エンドロールでは架けたことになっている、という食い違いが起きる。
+   *
+   * 逆向き（架けなければ必ず名もなき灯）は成り立たない。下のテストを見ること。
+   */
+  it('名もなき灯を引いた遊び方は、どの戸にも架けていない', () => {
+    for (const s of everyPlaythrough()) {
+      if (resolveEndingId(world, s) !== 'e-nameless') continue;
+      expect(trace(world, s).every((t) => !t.bridged)).toBe(true);
+    }
+  });
+
+  /**
+   * 名もなき灯は「架けなかった」だけでは灯らない。町の言葉をすべて拾っていることも要る。
+   * 灯台守に会わずに終幕まで行くと、どの戸にも架けていないのに別の灯になる。
+   * これは不具合ではなく、隠しの一つを「拾い残しでも引ける」ものにしないための仕様。
+   */
+  it('架けなくても、町の言葉が欠けていれば名もなき灯にはならない', () => {
+    const asIs = Object.fromEntries(world.gates.map((g) => [g.id, g.tension[0]])) as Record<
+      GateId,
+      FragmentId
+    >;
+    const s = playThrough(asIs, ['t-keeper']);
+    expect(s.currentPlaceId).toBe(world.finale);
+    expect(trace(world, s).every((t) => !t.bridged)).toBe(true);
+    expect(s.fragmentIds.length).toBeLessThan(world.fragments.length);
+    expect(resolveEndingId(world, s)).not.toBe('e-nameless');
+  });
+});
+
 describe('世界の整合性', () => {
   it('終幕の場所は実在し、そこに住人はいない', () => {
     const finale = findPlace(world, world.finale);
@@ -495,15 +574,20 @@ function fragmentsObtainableBefore(gate: Gate): Set<FragmentId> {
  * 町をひと巡りして三つの扉を開き、霧の底まで歩いた状態。
  *
  * `offers` で扉に置く一枚を指定できる。指定の無い扉は、そのとき手にしている先頭の一枚で開く。
+ * `skipTalks` に挙げた相手とは話さない（言葉を拾い残したまま終幕へ着く道を作るため）。
  * 順路は決め打ちなので、町に場所や扉を足したらここも継ぎ足す
  * （継ぎ足し忘れは「町の言葉はすべて拾える」が落ちて分かる）。
  */
-function playThrough(offers: Partial<Record<GateId, FragmentId>> = {}): GameState {
+function playThrough(
+  offers: Partial<Record<GateId, FragmentId>> = {},
+  skipTalks: TalkId[] = [],
+): GameState {
   let state = createInitialState(world);
   const go = (to: PlaceId) => {
     state = reduce(state, { type: 'MOVE', to }, world);
   };
   const talk = (talkId: TalkId) => {
+    if (skipTalks.includes(talkId)) return;
     state = reduce(state, { type: 'FINISH_TALK', talkId }, world);
   };
   const open = (gateId: GateId) => {
