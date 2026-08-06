@@ -58,6 +58,34 @@ export function createInitialState(world: World): GameState {
   };
 }
 
+/**
+ * まだ何もしていない状態か。歩いてもいない、話してもいない、戸も開けていない。
+ * 保存する意味の無い状態を見分けるのに使う（残しても、次に始まる場所は同じため）。
+ *
+ * 欄をひとつずつ並べず、初期状態と見分けがつかないことを条件にしている。
+ * GameState に欄を足したとき、ここの書き忘れが型に出ず
+ * 「触れたのに保存されない」へ静かに落ちるのを避けるため。
+ */
+export function isUntouched(world: World, state: GameState): boolean {
+  const initial = createInitialState(world);
+  return (Object.keys(initial) as (keyof GameState)[]).every((key) =>
+    sameShallow(state[key], initial[key]),
+  );
+}
+
+/**
+ * 初期状態と見比べるための、浅い突き合わせ。
+ * 配列は中身まで見るが、中の物は同一性で見る。
+ * 見分けがつかないものを「触れた」と読み違えても余分に保存するだけで済むので、
+ * 迷ったら触れた側に倒す向きにしてある。
+ */
+function sameShallow(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+  }
+  return a === b;
+}
+
 export function findPlace(world: World, id: PlaceId): Place | undefined {
   return world.places.find((p) => p.id === id);
 }
@@ -266,8 +294,10 @@ export function heldContradiction(world: World, state: GameState): boolean {
   if (!allGatesOpened(world, state)) return false;
   const walked = trace(world, state);
   // 「架けなかった」の判定は trace に一本化する。エンドロールと終幕で読みが割れないようにするため。
-  // 読み起こせなかった記録が混じっていたら、そのまま抱えてきたとは言い切れない
-  return walked.length === state.gateChoices.length && walked.every((t) => !t.bridged);
+  // 数えるのは記録の件数ではなく町の戸の数。記録の側が欠けていたとき、
+  // 欠けたぶんだけ「架けなかった」と見なしてしまわないようにする
+  // （欠けた記録は読み戻しで落ちることがある。engine/restore を参照）
+  return walked.length === world.gates.length && walked.every((t) => !t.bridged);
 }
 
 /**

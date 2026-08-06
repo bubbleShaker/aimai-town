@@ -24,6 +24,7 @@ import {
   gateResponse,
   gatesAhead,
   isSealed,
+  isUntouched,
   pendingGrants,
   reduce,
   resolveEnding,
@@ -411,6 +412,37 @@ describe('軌跡', () => {
     expect(s.fragmentIds.length).toBeLessThan(world.fragments.length);
     expect(resolveEndingId(world, s)).not.toBe('e-nameless');
   });
+
+  /**
+   * 数えるのは記録の件数ではなく町の戸の数、という担保。
+   * 記録の側が欠けた状態（読み戻しで落ちることがある）を件数どうしで突き合わせると、
+   * 欠けたぶんだけ「架けなかった」と見なして、二つしか置いていない歩みでも灯ってしまう。
+   */
+  it('置いた記録の欠けた戸があれば、名もなき灯にはならない', () => {
+    const asIs = Object.fromEntries(world.gates.map((g) => [g.id, g.tension[0]])) as Record<
+      GateId,
+      FragmentId
+    >;
+    const s = playThrough(asIs);
+    expect(resolveEndingId(world, s)).toBe('e-nameless');
+
+    const missing = { ...s, gateChoices: s.gateChoices.slice(0, -1) };
+    expect(trace(world, missing).every((t) => !t.bridged)).toBe(true);
+    expect(resolveEndingId(world, missing)).not.toBe('e-nameless');
+  });
+});
+
+describe('まだ何もしていない状態', () => {
+  it('始めたばかりなら真', () => {
+    expect(isUntouched(world, createInitialState(world))).toBe(true);
+  });
+
+  it('一歩でも歩けば、話せば、偽', () => {
+    const moved = reduce(createInitialState(world), { type: 'MOVE', to: 'loom' }, world);
+    expect(isUntouched(world, moved)).toBe(false);
+    const talked = reduce(createInitialState(world), { type: 'FINISH_TALK', talkId: 't-child' }, world);
+    expect(isUntouched(world, talked)).toBe(false);
+  });
 });
 
 describe('世界の整合性', () => {
@@ -423,6 +455,32 @@ describe('世界の整合性', () => {
   it('終幕へ通じる道は一本だけである', () => {
     const neighbors = world.places.filter((p) => p.links.includes(world.finale));
     expect(neighbors.length, '終幕へ複数の入口がある').toBe(1);
+  });
+
+  /**
+   * isSealed は場所ごとに「その場所を守る扉が開いているか」だけを見る。
+   * 戸の向こうのさらに向こうに、扉の付いていない場所を足すと、
+   * そこは「封じられていない」のに、戸を開かないと歩いては行けない場所になる。
+   * 保存の読み戻しはこの一致を前提に、封じられた場所に立った記録を弾いている
+   * （engine/restore を参照）。地形を足す人がコードを読まずに気づけるよう、ここで縛る。
+   */
+  it('封じられていない場所には、封じられた場所を通らずに歩いて行ける', () => {
+    const initial = createInitialState(world);
+    const reached = new Set<PlaceId>([world.start]);
+    const queue: PlaceId[] = [world.start];
+    while (queue.length > 0) {
+      const from = findPlace(world, queue.shift()!)!;
+      for (const to of from.links) {
+        if (reached.has(to)) continue;
+        if (isSealed(world, initial, to)) continue;
+        reached.add(to);
+        queue.push(to);
+      }
+    }
+    const unsealed = world.places.filter((p) => !isSealed(world, initial, p.id)).map((p) => p.id);
+    expect([...reached].sort(), '扉を開かずには歩いて行けないのに、封じられていない場所がある').toEqual(
+      unsealed.sort(),
+    );
   });
 
   it('終幕は、扉ではなく開いた扉の数で守られている', () => {
