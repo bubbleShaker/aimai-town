@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { world } from '../scenario';
 import type { Ending, FragmentId, Gate, PlaceId, TalkId } from '../scenario/types';
 import {
@@ -16,6 +16,7 @@ import {
   trace,
 } from '../engine/state';
 import type { GameState } from '../engine/state';
+import { clearSave, loadState, saveState } from '../store/save';
 import { EndingView } from './EndingView';
 import { GateView } from './GateView';
 import { MapView } from './MapView';
@@ -81,9 +82,32 @@ function opening(): Scene {
   };
 }
 
+/**
+ * 始めかたを一度だけ決める。前に歩いた記録があればそこから、無ければ町へ降りるところから。
+ * 進行と場面をまとめて決めているのは、保存の読み込みを二度走らせないため。
+ *
+ * 続きから始めるときは到着の描写を読み直さない。もうその場所に立っているため。
+ */
+function beginning(): { state: GameState; scene: Scene } {
+  const saved = loadState(world);
+  return saved
+    ? { state: saved, scene: { kind: 'idle' } }
+    : { state: createInitialState(world), scene: opening() };
+}
+
 export function Game() {
-  const [state, setState] = useState<GameState>(() => createInitialState(world));
-  const [scene, setScene] = useState<Scene>(opening);
+  const [begun] = useState(beginning);
+  const [state, setState] = useState<GameState>(begun.state);
+  const [scene, setScene] = useState<Scene>(begun.scene);
+
+  /*
+   * 進行が変わるたび書き戻す。書けない環境でも遊びは止まらない（store が飲み込む）。
+   * 保存するのは GameState だけで、場面（Scene）は保存しない。
+   * 「対話の何行目か」を復元しても意味が無く、GameState をそのまま載せる形も崩れるため。
+   */
+  useEffect(() => {
+    saveState(state);
+  }, [state]);
 
   const place = findPlace(world, state.currentPlaceId)!;
   const pendingGates = gatesAhead(world, state);
@@ -97,6 +121,9 @@ export function Game() {
    * 周回に何かを持ち越すのは M5 の話なので、ここでは何も引き継がない。
    */
   function restart() {
+    // 置いてきたものは保存からも消す。直後に効果が真新しい状態を書き戻すが、
+    // 前の歩みを持ち越さないという判断は、上書き任せにせずここに残しておく
+    clearSave();
     setState(createInitialState(world));
     setScene(opening());
   }
