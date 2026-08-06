@@ -1,13 +1,92 @@
 import { describe, expect, it } from 'vitest';
 import { world } from '../scenario';
+import type { Ending, EndingId, World } from '../scenario/types';
 import type { GameState } from './state';
-import { canMove, createInitialState, reduce, trace } from './state';
+import {
+  axes,
+  canMove,
+  createInitialState,
+  heldContradiction,
+  isSealed,
+  reduce,
+  resolveEndingId,
+  trace,
+} from './state';
 import { restoreState } from './restore';
+
+/**
+ * 検めそのものを試すための、最小の町。
+ * 本番の world だけで試すと、シナリオを書き足したとき期待値の意味がずれる。
+ * また restore が備えている「世界データを削った／足したあとの古い保存」は、
+ * 世界を二つ用意しないと再現できない。
+ *
+ * あ ―― い（戸のむこう）
+ * ｜
+ * ゑ（終幕）
+ */
+function tinyWorld(edit: (w: World) => World = (w) => w): World {
+  const lines = [{ text: '…' }];
+  const endingIds: EndingId[] = [
+    'e-lighthouse',
+    'e-weaver',
+    'e-square',
+    'e-fog',
+    'e-halfway',
+    'e-nameless',
+  ];
+  return edit({
+    start: 'a',
+    finale: 'z',
+    places: [
+      {
+        id: 'a',
+        name: 'あ',
+        x: 50,
+        y: 50,
+        arrival: lines,
+        links: ['b', 'z'],
+        talks: [{ id: 't1', label: '話す', lines, grants: ['f1', 'f2'] }],
+      },
+      { id: 'b', name: 'い', x: 20, y: 20, arrival: lines, links: ['a'], talks: [] },
+      { id: 'z', name: 'ゑ', x: 80, y: 80, arrival: lines, links: ['a'], talks: [] },
+    ],
+    fragments: [
+      { id: 'f1', text: 'ひとつめ', source: '誰か' },
+      { id: 'f2', text: 'ふたつめ', source: '誰か' },
+    ],
+    gates: [
+      {
+        id: 'g1',
+        name: '戸',
+        beyond: 'b',
+        tension: ['f1', 'f2'],
+        prologue: lines,
+        responses: {},
+        fallback: { lines, shift: { distance: 1, certainty: 1 } },
+      },
+    ],
+    endings: Object.fromEntries(
+      endingIds.map((id) => [id, { id, name: id, lines }]),
+    ) as Record<EndingId, Ending>,
+    closing: lines,
+  });
+}
 
 /** その場所の話をすべて終える */
 function talkAll(state: GameState): GameState {
   const place = world.places.find((p) => p.id === state.currentPlaceId)!;
   return place.talks.reduce((s, talk) => reduce(s, { type: 'FINISH_TALK', talkId: talk.id }, world), state);
+}
+
+/**
+ * 最小の町を歩き切った状態。言葉をすべて拾い、突きつけられた片方をそのまま戸に置いてある。
+ * つまり隠しの終幕（矛盾を矛盾のまま抱えた）を引く歩み。
+ */
+function tinyPlayed(): GameState {
+  const w = tinyWorld();
+  let s = reduce(createInitialState(w), { type: 'FINISH_TALK', talkId: 't1' }, w);
+  s = reduce(s, { type: 'OPEN_GATE', gateId: 'g1', fragmentId: 'f1' }, w);
+  return reduce(s, { type: 'MOVE', to: 'b' }, w);
 }
 
 /** 広場と織り小屋で話を集め、仕事の扉をひとつ開けたところまで歩いた状態 */
@@ -121,5 +200,78 @@ describe('restoreState', () => {
     const restored = restoreState(world, JSON.parse(JSON.stringify(before)))!;
     const beyond = world.gates.find((g) => g.id === 'g-work')!.beyond;
     expect(canMove(world, restored, beyond)).toBe(canMove(world, before, beyond));
+  });
+
+  it('読み戻しても、軸と引く終幕は変わらない', () => {
+    const before = walked();
+    const restored = restoreState(world, JSON.parse(JSON.stringify(before)))!;
+    expect(axes(world, restored)).toEqual(axes(world, before));
+    expect(resolveEndingId(world, restored)).toBe(resolveEndingId(world, before));
+    expect(heldContradiction(world, restored)).toBe(heldContradiction(world, before));
+  });
+});
+
+describe('まだ入れない場所に立った保存', () => {
+  it('開いた扉の向こうに立っているだけなら、そのままそこに残す', () => {
+    const beyond = world.gates.find((g) => g.id === 'g-work')!.beyond;
+    const before = { ...walked(), currentPlaceId: beyond };
+    expect(restoreState(world, before)!.currentPlaceId).toBe(beyond);
+  });
+
+  it('閉じた扉の向こうに立った保存は、始まりの場所へ戻す（歩みは残す）', () => {
+    const before = { ...walked(), openedGateIds: [], gateChoices: [] };
+    const restored = restoreState(world, { ...before, currentPlaceId: 'loom-inner' })!;
+    expect(restored.currentPlaceId).toBe(world.start);
+    // 拾った断片まで流さない
+    expect(restored.fragmentIds).toEqual(before.fragmentIds);
+    expect(restored.visitedPlaceIds).toContain(world.start);
+  });
+
+  it('扉を開かないまま終幕の場所に立った保存では、終幕を引けない', () => {
+    const restored = restoreState(world, {
+      ...createInitialState(world),
+      currentPlaceId: world.finale,
+    })!;
+    expect(restored.currentPlaceId).toBe(world.start);
+    expect(isSealed(world, restored, world.finale)).toBe(true);
+  });
+});
+
+describe('世界データを書き換えたあとの、古い保存', () => {
+  it('置いた一枚が世界から消えたら、その扉は開いていないことにする', () => {
+    const before = tinyPlayed();
+    // 戸に置いた f1 を、あとから町から削った世界で読む
+    const after = tinyWorld((w) => ({
+      ...w,
+      fragments: w.fragments.filter((f) => f.id !== 'f1'),
+      places: w.places.map((p) => ({ ...p, talks: p.talks.map((t) => ({ ...t, grants: ['f2'] })) })),
+    }));
+    const restored = restoreState(after, before)!;
+    expect(restored.openedGateIds).toEqual([]);
+    expect(restored.gateChoices).toEqual([]);
+    // 開いていないことにした扉の向こうに立ったままにはしない
+    expect(restored.currentPlaceId).toBe(after.start);
+  });
+
+  it('扉を足したあとは、その向こうに立っていた人を始まりの場所へ戻す', () => {
+    const before = { ...tinyPlayed(), currentPlaceId: 'z' };
+    // 終幕の場所に、新しく戸を立てた世界
+    const after = tinyWorld((w) => ({
+      ...w,
+      gates: [...w.gates, { ...w.gates[0], id: 'g2', name: '新しい戸', beyond: 'z' }],
+    }));
+    expect(restoreState(after, before)!.currentPlaceId).toBe(after.start);
+  });
+
+  it('扉の記録が片側だけ残っても、隠しの終幕は成り立たない', () => {
+    const before = tinyPlayed();
+    // 突きつけられた片方をそのまま置いて歩き切った状態なので、本来はこれを引く
+    expect(resolveEndingId(tinyWorld(), before)).toBe('e-nameless');
+
+    // 置いた一枚の記録だけを消した保存
+    const tampered = { ...before, gateChoices: [] };
+    const restored = restoreState(tinyWorld(), tampered)!;
+    expect(heldContradiction(tinyWorld(), restored)).toBe(false);
+    expect(resolveEndingId(tinyWorld(), restored)).not.toBe('e-nameless');
   });
 });

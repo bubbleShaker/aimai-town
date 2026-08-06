@@ -9,6 +9,7 @@ import {
   gateResponse,
   gateTension,
   gatesAhead,
+  isUntouched,
   offerableFragments,
   pendingGrants,
   reduce,
@@ -104,8 +105,12 @@ export function Game() {
    * 進行が変わるたび書き戻す。書けない環境でも遊びは止まらない（store が飲み込む）。
    * 保存するのは GameState だけで、場面（Scene）は保存しない。
    * 「対話の何行目か」を復元しても意味が無く、GameState をそのまま載せる形も崩れるため。
+   *
+   * まだ何もしていない状態は書かない。町へ降りる場面を読んでいる途中でタブを閉じた人に、
+   * 次に開いたときその文を飛ばさせないため。始め直した直後も、同じ理由で書かない。
    */
   useEffect(() => {
+    if (isUntouched(world, state)) return;
     saveState(state);
   }, [state]);
 
@@ -121,8 +126,8 @@ export function Game() {
    * 周回に何かを持ち越すのは M5 の話なので、ここでは何も引き継がない。
    */
   function restart() {
-    // 置いてきたものは保存からも消す。直後に効果が真新しい状態を書き戻すが、
-    // 前の歩みを持ち越さないという判断は、上書き任せにせずここに残しておく
+    // 置いてきたものは保存からも消す。書き戻しは何もしていない状態を書かないので、
+    // このあと消したものが上書きで戻ってくることはない
     clearSave();
     setState(createInitialState(world));
     setScene(opening());

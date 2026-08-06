@@ -24,6 +24,7 @@ import {
   gateResponse,
   gatesAhead,
   isSealed,
+  isUntouched,
   pendingGrants,
   reduce,
   resolveEnding,
@@ -410,6 +411,37 @@ describe('軌跡', () => {
     expect(trace(world, s).every((t) => !t.bridged)).toBe(true);
     expect(s.fragmentIds.length).toBeLessThan(world.fragments.length);
     expect(resolveEndingId(world, s)).not.toBe('e-nameless');
+  });
+
+  /**
+   * 数えるのは記録の件数ではなく町の戸の数、という担保。
+   * 記録の側が欠けた状態（読み戻しで落ちることがある）を件数どうしで突き合わせると、
+   * 欠けたぶんだけ「架けなかった」と見なして、二つしか置いていない歩みでも灯ってしまう。
+   */
+  it('置いた記録の欠けた戸があれば、名もなき灯にはならない', () => {
+    const asIs = Object.fromEntries(world.gates.map((g) => [g.id, g.tension[0]])) as Record<
+      GateId,
+      FragmentId
+    >;
+    const s = playThrough(asIs);
+    expect(resolveEndingId(world, s)).toBe('e-nameless');
+
+    const missing = { ...s, gateChoices: s.gateChoices.slice(0, -1) };
+    expect(trace(world, missing).every((t) => !t.bridged)).toBe(true);
+    expect(resolveEndingId(world, missing)).not.toBe('e-nameless');
+  });
+});
+
+describe('まだ何もしていない状態', () => {
+  it('始めたばかりなら真', () => {
+    expect(isUntouched(world, createInitialState(world))).toBe(true);
+  });
+
+  it('一歩でも歩けば、話せば、偽', () => {
+    const moved = reduce(createInitialState(world), { type: 'MOVE', to: 'loom' }, world);
+    expect(isUntouched(world, moved)).toBe(false);
+    const talked = reduce(createInitialState(world), { type: 'FINISH_TALK', talkId: 't-child' }, world);
+    expect(isUntouched(world, talked)).toBe(false);
   });
 });
 

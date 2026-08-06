@@ -1,6 +1,6 @@
 import type { FragmentId, GateId, World } from '../scenario/types';
 import type { GameState, GateChoice } from './state';
-import { findPlace } from './state';
+import { findPlace, isSealed } from './state';
 
 /**
  * 保存されたものを GameState に読み戻す層。
@@ -18,9 +18,9 @@ export function restoreState(world: World, raw: unknown): GameState | null {
   const saved = asRecord(raw);
   if (!saved) return null;
 
-  const currentPlaceId = asString(saved.currentPlaceId);
+  const standing = asString(saved.currentPlaceId);
   // 立っている場所が世界から消えていたら、どこへ戻せばよいか決められない。保存ごと捨てる
-  if (currentPlaceId === null || !findPlace(world, currentPlaceId)) return null;
+  if (standing === null || !findPlace(world, standing)) return null;
 
   const placeIds = idsOf(world.places);
   const fragmentIds = idsOf(world.fragments);
@@ -30,15 +30,37 @@ export function restoreState(world: World, raw: unknown): GameState | null {
   const visited = knownIds(saved.visitedPlaceIds, placeIds);
   const fragments = knownIds(saved.fragmentIds, fragmentIds);
   const openedGates = knownIds(saved.openedGateIds, gateIds);
+  const gateChoices = restoreChoices(saved.gateChoices, openedGates, fragments);
+  // 開いた扉と置いた記録は対で残す。片側だけ残すと、扉は開いているのに軌跡に出ない一枚が生まれ、
+  // 「三つの戸すべてで片方を置いた」を数える隠しの終幕が、二つしか置いていない歩みでも成り立つ
+  const placed = new Set(gateChoices.map((choice) => choice.gateId));
 
-  return {
-    currentPlaceId,
-    // 立っている場所は必ず訪れたことになる。保存側が欠けていても矛盾を残さない
-    visitedPlaceIds: visited.includes(currentPlaceId) ? visited : [...visited, currentPlaceId],
+  const restored: GameState = {
+    currentPlaceId: standing,
+    visitedPlaceIds: visited,
     fragmentIds: fragments,
     finishedTalkIds: knownIds(saved.finishedTalkIds, talkIds),
-    openedGateIds: openedGates,
-    gateChoices: restoreChoices(saved.gateChoices, openedGates, fragments),
+    openedGateIds: openedGates.filter((id) => placed.has(id)),
+    gateChoices,
+  };
+
+  /*
+   * まだ入れない場所に立った保存は通さない。
+   * 扉を開いた記録だけを消せば、閉じた戸の向こう側や、条件の満たない終幕の場所に
+   * 立った状態を書ける。そこから終幕を引けてしまうと、
+   * 「そこへ来られる条件は engine が守っている」が保存経由で破れる。
+   *
+   * 歩みごと捨てずに始まりの場所へ戻すのは、扉を足すなど世界を書き足したときに、
+   * それまで正しく歩いてきた人の断片まで流さないため。
+   */
+  const here = isSealed(world, restored, standing) ? world.start : standing;
+  // 始まりの場所すら封じられている世界では、戻す先が無い
+  if (isSealed(world, restored, here)) return null;
+  return {
+    ...restored,
+    currentPlaceId: here,
+    // 立っている場所は必ず訪れたことになる。保存側が欠けていても矛盾を残さない
+    visitedPlaceIds: visited.includes(here) ? visited : [...visited, here],
   };
 }
 
@@ -46,10 +68,6 @@ export function restoreState(world: World, raw: unknown): GameState | null {
  * 戸に置いてきた記録。
  * reduce は「開いた扉」と「置いた一枚」を必ず対で積むので、読み戻すときも対で揃うものだけ残す。
  * 扉ごとに高々一件という不変条件もここで守る（axes と trace がそれを前提にしている）。
- *
- * 逆に、開いた扉の側は記録が落ちても閉じ直さない。
- * 一度開いた戸を閉じると、その先にいるプレイヤーが行き止まりに残される。
- * 置いた一枚だけが読めなくなった扉は、軌跡に出ないまま開いたものとして扱う。
  */
 function restoreChoices(
   raw: unknown,

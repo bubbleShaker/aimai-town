@@ -58,6 +58,21 @@ export function createInitialState(world: World): GameState {
   };
 }
 
+/**
+ * まだ何もしていない状態か。歩いてもいない、話してもいない、戸も開けていない。
+ * 保存する意味の無い状態を見分けるのに使う（残しても、次に始まる場所は同じため）。
+ */
+export function isUntouched(world: World, state: GameState): boolean {
+  return (
+    state.currentPlaceId === world.start &&
+    state.visitedPlaceIds.length <= 1 &&
+    state.fragmentIds.length === 0 &&
+    state.finishedTalkIds.length === 0 &&
+    state.openedGateIds.length === 0 &&
+    state.gateChoices.length === 0
+  );
+}
+
 export function findPlace(world: World, id: PlaceId): Place | undefined {
   return world.places.find((p) => p.id === id);
 }
@@ -266,8 +281,10 @@ export function heldContradiction(world: World, state: GameState): boolean {
   if (!allGatesOpened(world, state)) return false;
   const walked = trace(world, state);
   // 「架けなかった」の判定は trace に一本化する。エンドロールと終幕で読みが割れないようにするため。
-  // 読み起こせなかった記録が混じっていたら、そのまま抱えてきたとは言い切れない
-  return walked.length === state.gateChoices.length && walked.every((t) => !t.bridged);
+  // 数えるのは記録の件数ではなく町の戸の数。記録の側が欠けていたとき、
+  // 欠けたぶんだけ「架けなかった」と見なしてしまわないようにする
+  // （欠けた記録は読み戻しで落ちることがある。engine/restore を参照）
+  return walked.length === world.gates.length && walked.every((t) => !t.bridged);
 }
 
 /**

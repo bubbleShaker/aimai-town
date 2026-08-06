@@ -3,9 +3,12 @@ import { world } from '../scenario';
 import { createInitialState, reduce } from '../engine/state';
 import { clearSave, loadState, saveState } from './save';
 
-/** localStorage の代わり。壊れかたを差し込めるように、投げる版も作れるようにしてある */
-function fakeStorage(onSet?: () => void, onGet?: () => void): Storage {
+/** localStorage の代わり。どの操作で投げるかを差し込めるようにしてある */
+function fakeStorage(throwsOn: ('get' | 'set' | 'remove')[] = []): Storage {
   const map = new Map<string, string>();
+  const guard = (op: 'get' | 'set' | 'remove') => {
+    if (throwsOn.includes(op)) throw new Error(`${op} は使えない`);
+  };
   return {
     get length() {
       return map.size;
@@ -13,14 +16,15 @@ function fakeStorage(onSet?: () => void, onGet?: () => void): Storage {
     clear: () => map.clear(),
     key: (i: number) => [...map.keys()][i] ?? null,
     getItem: (k: string) => {
-      onGet?.();
+      guard('get');
       return map.get(k) ?? null;
     },
     setItem: (k: string, v: string) => {
-      onSet?.();
+      guard('set');
       map.set(k, v);
     },
     removeItem: (k: string) => {
+      guard('remove');
       map.delete(k);
     },
   } as Storage;
@@ -91,20 +95,17 @@ describe('localStorage が使えない環境', () => {
   });
 
   it('書き込みが投げても落ちない（保存量の上限やプライベートモード）', () => {
-    use(
-      fakeStorage(() => {
-        throw new Error('QuotaExceededError');
-      }),
-    );
+    use(fakeStorage(['set']));
     expect(() => saveState(createInitialState(world))).not.toThrow();
   });
 
   it('読み出しが投げても、初めから始められる', () => {
-    use(
-      fakeStorage(undefined, () => {
-        throw new Error('SecurityError');
-      }),
-    );
+    use(fakeStorage(['get']));
     expect(loadState(world)).toBeNull();
+  });
+
+  it('消せなくても落ちない（始め直しが止まらない）', () => {
+    use(fakeStorage(['remove']));
+    expect(() => clearSave()).not.toThrow();
   });
 });
