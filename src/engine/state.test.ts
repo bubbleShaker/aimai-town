@@ -457,6 +457,32 @@ describe('世界の整合性', () => {
     expect(neighbors.length, '終幕へ複数の入口がある').toBe(1);
   });
 
+  /**
+   * isSealed は場所ごとに「その場所を守る扉が開いているか」だけを見る。
+   * 戸の向こうのさらに向こうに、扉の付いていない場所を足すと、
+   * そこは「封じられていない」のに、戸を開かないと歩いては行けない場所になる。
+   * 保存の読み戻しはこの一致を前提に、封じられた場所に立った記録を弾いている
+   * （engine/restore を参照）。地形を足す人がコードを読まずに気づけるよう、ここで縛る。
+   */
+  it('封じられていない場所には、封じられた場所を通らずに歩いて行ける', () => {
+    const initial = createInitialState(world);
+    const reached = new Set<PlaceId>([world.start]);
+    const queue: PlaceId[] = [world.start];
+    while (queue.length > 0) {
+      const from = findPlace(world, queue.shift()!)!;
+      for (const to of from.links) {
+        if (reached.has(to)) continue;
+        if (isSealed(world, initial, to)) continue;
+        reached.add(to);
+        queue.push(to);
+      }
+    }
+    const unsealed = world.places.filter((p) => !isSealed(world, initial, p.id)).map((p) => p.id);
+    expect([...reached].sort(), '扉を開かずには歩いて行けないのに、封じられていない場所がある').toEqual(
+      unsealed.sort(),
+    );
+  });
+
   it('終幕は、扉ではなく開いた扉の数で守られている', () => {
     // 扉で守ると「一枚差し出せば開く」ことになり、町を巡らずに終われてしまう
     expect(gateGuarding(world, world.finale)).toBeUndefined();

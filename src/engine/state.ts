@@ -61,16 +61,29 @@ export function createInitialState(world: World): GameState {
 /**
  * まだ何もしていない状態か。歩いてもいない、話してもいない、戸も開けていない。
  * 保存する意味の無い状態を見分けるのに使う（残しても、次に始まる場所は同じため）。
+ *
+ * 欄をひとつずつ並べず、初期状態と見分けがつかないことを条件にしている。
+ * GameState に欄を足したとき、ここの書き忘れが型に出ず
+ * 「触れたのに保存されない」へ静かに落ちるのを避けるため。
  */
 export function isUntouched(world: World, state: GameState): boolean {
-  return (
-    state.currentPlaceId === world.start &&
-    state.visitedPlaceIds.length <= 1 &&
-    state.fragmentIds.length === 0 &&
-    state.finishedTalkIds.length === 0 &&
-    state.openedGateIds.length === 0 &&
-    state.gateChoices.length === 0
+  const initial = createInitialState(world);
+  return (Object.keys(initial) as (keyof GameState)[]).every((key) =>
+    sameShallow(state[key], initial[key]),
   );
+}
+
+/**
+ * 初期状態と見比べるための、浅い突き合わせ。
+ * 配列は中身まで見るが、中の物は同一性で見る。
+ * 見分けがつかないものを「触れた」と読み違えても余分に保存するだけで済むので、
+ * 迷ったら触れた側に倒す向きにしてある。
+ */
+function sameShallow(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+  }
+  return a === b;
 }
 
 export function findPlace(world: World, id: PlaceId): Place | undefined {

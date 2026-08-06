@@ -35,6 +35,7 @@ export function restoreState(world: World, raw: unknown): GameState | null {
   // 「三つの戸すべてで片方を置いた」を数える隠しの終幕が、二つしか置いていない歩みでも成り立つ
   const placed = new Set(gateChoices.map((choice) => choice.gateId));
 
+  // 封じの判定にしか使わない一時の姿。立っている場所はこのあと決め直す
   const restored: GameState = {
     currentPlaceId: standing,
     visitedPlaceIds: visited,
