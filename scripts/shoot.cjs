@@ -33,9 +33,12 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
    * 物語欄が消えるまで（stopAtEnd なら全文が出たところで）読み進める。
    * 読み終えたかは「つづける」が消えたことで見る。
    * 読み終えたあとの文字は場面によって変わる（もどる／灯を見る）ため。
+   *
+   * 一字送りが入ってから、一行につき二度触れる（出し切る・次へ進む）ので、
+   * 回数の上限は行数の倍を見込んでおく。
    */
   const read = async (stopAtEnd = false) => {
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 100; i++) {
       if ((await page.locator('.story').count()) === 0) return;
       if (stopAtEnd && !(await page.locator('.story-next').innerText()).includes('つづける')) return;
       await tap('.story');
