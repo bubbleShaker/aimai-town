@@ -43,6 +43,8 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
       if (stopAtEnd && !(await page.locator('.story-next').innerText()).includes('つづける')) return;
       await tap('.story');
     }
+    // 上限に達したら投げる。黙って抜けると、読み進めなくなったことに気づけない
+    throw new Error('読み進められないまま上限に達した');
   };
 
   await page.goto(URL, { waitUntil: 'load' });

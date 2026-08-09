@@ -206,15 +206,6 @@ body {
   font-size: 0.98rem;
   letter-spacing: 0.04em;
   color: var(--ink-dim);
-  animation: emerge 0.5s ease-out;
-}
-
-/*
- * 一字ずつ送られる行。送られること自体が浮かび上がりなので、
- * emerge を重ねない（フェードの途中で字が増えて二重に見える）。
- */
-.line.is-typed {
-  animation: none;
 }
 
 .line.is-speech {
@@ -236,7 +227,11 @@ body {
   font-size: 0.9rem;
 }
 
-/* 言葉は霧から浮かび上がってくる */
+/*
+ * 言葉は霧から浮かび上がってくる。
+ * 物語の行はフェードではなく一字ずつ送ることで浮かび上がるので、ここでは使わない
+ * （送っている最中にフェードが重なると、字が増えているのか薄いのか読めなくなる）。
+ */
 @keyframes emerge {
   from { opacity: 0; transform: translateY(0.4em); }
   to { opacity: 1; transform: none; }
@@ -606,7 +601,6 @@ body {
 /* 動きを減らす設定の端末では、灯も言葉も静止させる */
 @media (prefers-reduced-motion: reduce) {
   .place.is-here .place-dot,
-  .line,
   .ending-name {
     animation: none;
   }
