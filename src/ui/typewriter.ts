@@ -1,5 +1,3 @@
-import type { ShownLine } from './StoryView';
-
 /**
  * いま送っている一行が「どれ」なのかを決めるもの。
  *
@@ -8,8 +6,11 @@ import type { ShownLine } from './StoryView';
  * はじめて一行が一意に決まる。
  */
 export interface TypeTarget {
-  /** どの場面の言葉か。場面が変われば配列の実体ごと変わる */
-  source: readonly ShownLine[];
+  /**
+   * どの場面の言葉か。場面が変われば実体ごと変わる何か。
+   * 中身は読まず、同じものかどうかだけを見る（だから型を狭めない）。
+   */
+  source: object;
   /** 何行目か */
   lineNo: number;
   /** その行の文面 */

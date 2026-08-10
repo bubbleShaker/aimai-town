@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { isAtBottom } from './follow';
 import { sentSoFar, type TypeProgress, type TypeTarget } from './typewriter';
 
 /** 画面に流す一行。fragment が立っている行は断片の獲得を示す */
@@ -9,6 +10,11 @@ export interface ShownLine {
 }
 
 interface Props {
+  /**
+   * 読ませる言葉。ひと続きの読みのあいだ、配列の実体は変えないこと。
+   * どこまで送ったかをこの実体で見分けているので、
+   * 描くたびに新しい配列を渡すと一字も進まないまま固まる。
+   */
   lines: ShownLine[];
   /** これまでに表示した行数 */
   shown: number;
@@ -20,8 +26,10 @@ interface Props {
 /** 一字を送る間隔（ミリ秒）。読む速さより少し遅くして、言葉に間を作る */
 const TYPE_INTERVAL_MS = 45;
 
-/** 下端に着いているとみなす距離（px）。一行の高さに満たない程度 */
-const NEAR_BOTTOM_PX = 24;
+/** 断片を得た報せと括弧は送らず先に出す。閉じない鉤括弧が出たままにならないよう */
+function dress(line: ShownLine, body: string): string {
+  return line.fragment ? `断片を得た　「${body}」` : body;
+}
 
 /** 演出を減らす設定の人には、一字送りをしない */
 function prefersReducedMotion(): boolean {
@@ -85,7 +93,12 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
 
   /*
    * 行が増えるたび、また字が伸びるたび最下部へ寄せる。
-   * ただし指で上へさかのぼっているあいだは追わない。一字進むたび引き戻されると読み返せない。
+   * ただし上へさかのぼっているあいだは追わない。一字進むたび引き戻されると読み返せない。
+   *
+   * 追うかどうかは、動いた先がどこかだけで決める。指もホイールも矢印キーも
+   * つまみのドラッグも、位置が動けば必ずここへ落ちてくるので取りこぼしが無い。
+   * 入力の種類で見分けようとすると、位置の動かない入力（下端でさらに下へ回す、
+   * 指を置いたまま微動する）で追うのをやめたきり、戻す報せが来ないまま固まる。
    */
   const following = useRef(true);
 
@@ -94,28 +107,27 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
     if (el && following.current) el.scrollTop = el.scrollHeight;
   }, [shown, revealedText]);
 
-  /*
-   * 指やホイールで動かされたら、その場で追うのをやめる。
-   * 位置の差から人の手か機械かを見分ける作りだと、指が動かした後に
-   * 送りの上書きが先に届いた回で、さかのぼりが無かったことになる。
-   * 動かす意思そのものを入力の側で受け取れば、その競り合いが起きない。
-   */
-  function releaseFollow() {
-    following.current = false;
-  }
-
   /** 触れたときの動き。送っている途中なら、進むより先にその行を出し切る */
   function advance() {
-    if (typing) {
-      finish();
-      return;
-    }
+    /*
+     * 言葉を選んでいる手は、進めたい手ではない。
+     * 本文は選んで読み返せるようにしてあるので、選び終えて指を離した拍子に
+     * 話が進むと、読み返そうとした人ほど置いていかれる。
+     */
+    if (getSelection()?.isCollapsed === false) return;
+
     /*
      * 進むと決めた人には、新しい行を必ず見せる。
      * 読み返しで追うのをやめたまま行だけ増えると、増えた行は画面の外に出たままになり、
      * 何も起きていないように見えて叩き続け、一行も目にしないまま次の場面へ行ける。
+     * 出し切るだけのときも戻すのは、そのひと触れも「見せてほしい」意思だから。
      */
     following.current = true;
+
+    if (typing) {
+      finish();
+      return;
+    }
     onAdvance();
   }
 
@@ -124,17 +136,16 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
       <div
         className="story-lines"
         ref={scrollRef}
-        onWheel={releaseFollow}
-        onTouchMove={releaseFollow}
+        /* 積み上げた言葉を読み返す場所。キーだけで操る人にも矢印で辿らせる */
+        tabIndex={0}
+        role="region"
+        aria-label="これまでの言葉"
         onScroll={(e) => {
-          // 下端まで戻ってきたら、また追いはじめる
           const el = e.currentTarget;
-          following.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+          following.current = isAtBottom(el.scrollHeight, el.scrollTop, el.clientHeight);
         }}
       >
         {lines.slice(0, shown).map((line, i) => {
-          /** 断片を得た報せと括弧は送らず先に出す。閉じない鉤括弧が出たままにならないよう */
-          const dress = (body: string) => (line.fragment ? `断片を得た　「${body}」` : body);
           // 送っている途中なのは最後の一行だけ。それより前は全文が残る
           const isTyping = i === shown - 1 && typing;
           return (
@@ -149,11 +160,11 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
                 <>
                   {/* 送りかけの文は目にだけ見せる。欠けたまま読み上げても言葉にならないため、
                       読み上げには全文を渡す。読み上げを急かさないよう aria-live は付けない */}
-                  <span aria-hidden="true">{dress(revealedText)}</span>
-                  <span className="sr-only">{dress(line.text)}</span>
+                  <span aria-hidden="true">{dress(line, revealedText)}</span>
+                  <span className="sr-only">{dress(line, line.text)}</span>
                 </>
               ) : (
-                dress(line.text)
+                dress(line, line.text)
               )}
             </p>
           );

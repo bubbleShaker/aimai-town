@@ -41,6 +41,8 @@
 .line {
   user-select: text;
   -webkit-user-select: text;
+  /* 読み上げ用に添えた全文（.sr-only）を、この行の中に留めるため */
+  position: relative;
 }
 
 /*

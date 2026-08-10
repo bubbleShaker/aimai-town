@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ShownLine } from './StoryView';
 import { sentSoFar, type TypeProgress, type TypeTarget } from './typewriter';
 
-/** ある場面の言葉。実体で場面を見分けるので、テストでも配列を作り分ける */
-const scene: ShownLine[] = [{ text: '霧は、人の背丈のあたりでいちばん濃い。' }, { text: 'だから顔だけが、いくつも浮かんで見える。' }];
+/** ある場面の言葉。実体で場面を見分けるので、テストでも作り分ける */
+const scene = [{ text: '霧は、人の背丈のあたりでいちばん濃い。' }, { text: 'だから顔だけが、いくつも浮かんで見える。' }];
 
-function target(lineNo: number, text: string, source: readonly ShownLine[] = scene): TypeTarget {
+function target(lineNo: number, text: string, source: object = scene): TypeTarget {
   return { source, lineNo, text };
 }
 
@@ -34,7 +33,7 @@ describe('sentSoFar', () => {
   it('場面が変われば、行番号も文面も同じでも送り直す', () => {
     // 対話のあとに扉の言葉が続くように、reading から reading へ直に移った場合。
     // 行番号（1行目）も文面も同じなので、場面の実体でしか見分けられない
-    const other: ShownLine[] = [{ text: 'おなじ言葉' }];
+    const other = [{ text: 'おなじ言葉' }];
     const before = target(1, 'おなじ言葉');
     const after = target(1, 'おなじ言葉', other);
     expect(sentSoFar(progress(5, before), after, 5, false)).toBe(0);

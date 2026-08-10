@@ -13,7 +13,11 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
     // 途中で投げても閉じる。開いたまま落ちると chromium が残る
     await browser.close();
   }
-})();
+})().catch((e) => {
+  // 何につまずいたのかを読める形で出す。撮れた絵だけ見て素通りしないよう
+  console.error(e);
+  process.exitCode = 1;
+});
 
 async function run(browser) {
   const page = await browser.newPage({
@@ -55,6 +59,45 @@ async function run(browser) {
     // 上限に達したら投げる。黙って抜けると、読み進めなくなったことに気づけない
     throw new Error('読み進められないまま上限に達した');
   };
+  /**
+   * 読み返そうと上へさかのぼってから進めたとき、増えた行が画面の中に残るかを見る。
+   * ここが崩れると、増えた行は画面の外に置かれ、何も起きていないように見えて叩き続け、
+   * 一行も目にしないまま扉や終幕まで行ける。絵にはほとんど映らないので、ここで確かめる。
+   *
+   * 読みかけの場面で呼ぶこと。まだ先がある場面でないと、叩いた拍子に場面が閉じてしまう。
+   */
+  const assertNotLeftBehind = async () => {
+    const box = () => page.locator('.story-lines');
+    const reading = async () => (await page.locator('.story').count()) > 0;
+    const hasMore = async () => (await page.locator('.story-next').innerText()).includes('つづける');
+
+    // あふれるまで読み進める。あふれていなければ、さかのぼる余地が無い
+    for (let i = 0; i < 40; i++) {
+      if (!(await reading()) || !(await hasMore())) return;
+      if (await box().evaluate((el) => el.scrollHeight - el.clientHeight > 40)) break;
+      await tap('.story');
+    }
+
+    await box().evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.waitForTimeout(150);
+    // 出し切って、次の行へ進める
+    for (let i = 0; i < 2; i++) {
+      if (!(await reading())) return; // 場面が閉じたなら、この確認の対象ではない
+      await tap('.story');
+    }
+    if (!(await reading())) return;
+
+    const visible = await box().evaluate((el) => {
+      const last = el.querySelector('.line:last-child');
+      if (!last) return true;
+      const line = last.getBoundingClientRect();
+      const view = el.getBoundingClientRect();
+      return line.top < view.bottom && line.bottom > view.top;
+    });
+    if (!visible) throw new Error('読み返した後に進むと、増えた行が画面の外に置き去りになる');
+  };
 
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
@@ -65,6 +108,7 @@ async function run(browser) {
 
   // 広場のふたりから断片を得る
   await tap('.button >> nth=0');
+  await assertNotLeftBehind(); // 読みかけのうちに、読み返しても置き去りにされないことを見る
   await read(true);
   await shot('03-talk');
   await read();
