@@ -109,10 +109,8 @@ async function run(browser) {
    * 画面からあふれる長さの読み物で呼ぶこと（あふれなければ、冒頭も下端も同じ位置になる）。
    */
   const assertOpensAtTop = async () => {
-    const { lines, done } = await readingShape();
-    if (lines < 2 || !done) {
-      throw new Error(`一度読んだ言葉が、また一字ずつ送られている（${lines} 行 / 読了=${done}）`);
-    }
+    // 待たせていないことは、そちらの検めに任せる（同じ条件を二か所に書くと、片方だけ直される）
+    await assertNoWaitOnReread();
     const shape = await page.locator('.story-lines').evaluate((el) => ({
       overflowing: el.scrollHeight - el.clientHeight > 40,
       top: el.scrollTop,

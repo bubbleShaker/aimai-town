@@ -26,8 +26,7 @@ import { GateView } from './GateView';
 import { MapView } from './MapView';
 import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
-import type { ShownLine } from './StoryView';
-import type { AfterReading, Scene } from './scene';
+import type { AfterReading, Scene, ShownLine } from './scene';
 import { beginReading, isFacing } from './scene';
 import { TraceView } from './TraceView';
 

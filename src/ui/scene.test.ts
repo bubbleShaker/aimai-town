@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyLore, markRead } from '../engine/lore';
 import type { Reading } from '../engine/lore';
-import type { ShownLine } from './StoryView';
-import type { Scene } from './scene';
+import type { Scene, ShownLine } from './scene';
 import { beginReading, isFacing } from './scene';
 
 const reading: Reading = { kind: 'talk', talkId: 't-child' };

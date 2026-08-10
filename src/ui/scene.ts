@@ -1,7 +1,17 @@
 import type { Ending, FragmentId, Gate, TalkId } from '../scenario/types';
 import type { Lore, Reading } from '../engine/lore';
 import { hasRead } from '../engine/lore';
-import type { ShownLine } from './StoryView';
+
+/**
+ * 画面に流す一行。fragment が立っている行は断片の獲得を示す。
+ * 描く側（StoryView）ではなくこちらに置くのは、場面がどんな言葉を抱えるかは
+ * 場面の側の話で、React から離した層をそのまま保つため。
+ */
+export interface ShownLine {
+  speaker?: string;
+  text: string;
+  fragment?: boolean;
+}
 
 /**
  * 画面の状態。ゲームの進行そのもの（GameState）とは分けて持つ。
@@ -52,7 +62,8 @@ export type AfterReading =
   | { kind: 'ending'; ending: Ending };
 
 /**
- * 読み始めの場面を組む。読みの場面を立てる道はここ一本だけにする。
+ * 読み始めの場面を組む。読みの場面を立てる道はここ一本だけにする
+ * （型では縛れないので、道を増やすときは scene.test.ts に組を足すこと）。
  *
  * 一度読み切ったものは、はじめから全文を開く。二周目の人に同じ言葉を
  * 一字ずつ送り直さないため。飛ばすのではなく待ち時間だけを消すので、

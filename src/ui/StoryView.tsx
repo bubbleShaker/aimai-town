@@ -1,13 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isAtBottom } from './follow';
+import type { ShownLine } from './scene';
 import { sentSoFar, type TypeProgress, type TypeTarget } from './typewriter';
-
-/** 画面に流す一行。fragment が立っている行は断片の獲得を示す */
-export interface ShownLine {
-  speaker?: string;
-  text: string;
-  fragment?: boolean;
-}
 
 interface Props {
   /**
@@ -118,6 +112,11 @@ export function StoryView({
    * 開いた時点で全文が入っている場面（一度読んだもの）だけは、下端ではなく冒頭を見せる。
    * 下端に寄せると、待たせない代わりに読み返しの入口を失う。
    * 待ち時間を消したつもりが、読み手には飛ばされたのと同じ見え方になってしまう。
+   *
+   * ここは既読（instant）だけを見る。演出を減らす設定（reduced）と混ぜてはいけない。
+   * 混ぜると、その設定の人が「まだ読んでいない」言葉を一行ずつ進めるあいだ、
+   * 行が増えて最終行に届くたび冒頭へ引き戻され、増えた行が画面の外に置き去りになる。
+   * それは assertNotLeftBehind が塞いでいる崩れ方そのもの。
    */
   const openedWhole = instant && shown >= lines.length;
 
