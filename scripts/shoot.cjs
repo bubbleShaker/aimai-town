@@ -62,6 +62,68 @@ async function run(browser) {
     throw new Error('読み進められないまま上限に達した');
   };
   /**
+   * 物語欄の姿。何行出ているかと、読み終えたことになっているか。
+   *
+   * 一字ずつ送られたかは撮った絵に映らない。送り終えた画面と、はじめから
+   * 出し切った画面は同じ姿になるため。だから絵ではなくこの二つで見る。
+   */
+  const readingShape = () =>
+    page.evaluate(() => ({
+      lines: document.querySelectorAll('.story-lines .line').length,
+      /*
+       * 読み終えたことは、読み終えた側の文字で見る。
+       * 「つづける でないこと」で見ると、物語欄そのものが消えていても
+       * 読み終えたことになり、検めが空振りで通ってしまう。
+       */
+      done: /もどる|灯を見る/.test(document.querySelector('.story-next')?.textContent ?? ''),
+    }));
+
+  /**
+   * まだ読んでいない言葉は、今までどおり一行ずつ送られることを見る。
+   * 既読を取り違えて何もかも一息で出すようになると、
+   * 「読ませないまま先へ行かせない」が根から崩れる。
+   */
+  const assertTypedForNewWords = async () => {
+    const { lines, done } = await readingShape();
+    if (lines !== 1 || done) {
+      throw new Error(`まだ読んでいない言葉が、はじめから出し切られている（${lines} 行 / 読了=${done}）`);
+    }
+  };
+
+  /**
+   * 一度読み切った言葉は、次に開いたときはじめから全文が出ていることを見る。
+   * 全文が残るからこそ読み返せる（飛ばすのではなく、待ち時間だけを消している）。
+   */
+  const assertNoWaitOnReread = async () => {
+    const { lines, done } = await readingShape();
+    if (lines < 2 || !done) {
+      throw new Error(`一度読んだ言葉が、また一字ずつ送られている（${lines} 行 / 読了=${done}）`);
+    }
+  };
+
+  /**
+   * 一度読んだ言葉を開いたとき、下端ではなく冒頭が見えることを見る。
+   * 全文が出ていても下端に寄っていると、読み手には飛ばされたのと同じに見える。
+   * 待ち時間だけを消すつもりが、読み返しの入口を失っていないかの確認。
+   *
+   * 画面からあふれる長さの読み物で呼ぶこと（あふれなければ、冒頭も下端も同じ位置になる）。
+   */
+  const assertOpensAtTop = async () => {
+    // 待たせていないことは、そちらの検めに任せる（同じ条件を二か所に書くと、片方だけ直される）
+    await assertNoWaitOnReread();
+    const shape = await page.locator('.story-lines').evaluate((el) => ({
+      overflowing: el.scrollHeight - el.clientHeight > 40,
+      top: el.scrollTop,
+    }));
+    if (!shape.overflowing) {
+      throw new Error('あふれない読み物では、冒頭から見えているかを確かめられない');
+    }
+    if (shape.top > 4) {
+      throw new Error(`一度読んだ言葉が、冒頭ではなく途中から開いている（${shape.top}px 下）`);
+    }
+  };
+
+  /**
    * 読み返そうと上へさかのぼってから進めたとき、増えた行が画面の中に残るかを見る。
    * ここが崩れると、増えた行は画面の外に置かれ、何も起きていないように見えて叩き続け、
    * 一行も目にしないまま扉や終幕まで行ける。絵にはほとんど映らないので、ここで確かめる。
@@ -105,6 +167,7 @@ async function run(browser) {
   await page.waitForTimeout(1000);
   await shot('01-arrival');
   await assertFogDrifts(page);
+  await assertTypedForNewWords(); // 初めての言葉は、一行ずつ送られている途中のはず
 
   await read();
   await shot('02-actions');
@@ -212,6 +275,14 @@ async function run(browser) {
   await tap('.trace .button.is-lit');
   await page.waitForTimeout(700);
   await shot('17-restart');
+  // 二周目。降りてきた言葉は一度読んでいるので、もう待たせない
+  await assertNoWaitOnReread();
+  await read();
+
+  // 一周目に読んだ長い対話をもう一度開く。全文が出たうえで、冒頭から見えていること
+  await tap('.button >> nth=0');
+  await assertOpensAtTop();
+  await shot('18-reread');
 }
 
 /**

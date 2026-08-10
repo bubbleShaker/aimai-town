@@ -2,33 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { world } from '../scenario';
 import { createInitialState, reduce } from '../engine/state';
 import { clearSave, loadState, saveState } from './save';
-
-/** localStorage の代わり。どの操作で投げるかを差し込めるようにしてある */
-function fakeStorage(throwsOn: ('get' | 'set' | 'remove')[] = []): Storage {
-  const map = new Map<string, string>();
-  const guard = (op: 'get' | 'set' | 'remove') => {
-    if (throwsOn.includes(op)) throw new Error(`${op} は使えない`);
-  };
-  return {
-    get length() {
-      return map.size;
-    },
-    clear: () => map.clear(),
-    key: (i: number) => [...map.keys()][i] ?? null,
-    getItem: (k: string) => {
-      guard('get');
-      return map.get(k) ?? null;
-    },
-    setItem: (k: string, v: string) => {
-      guard('set');
-      map.set(k, v);
-    },
-    removeItem: (k: string) => {
-      guard('remove');
-      map.delete(k);
-    },
-  } as Storage;
-}
+import { fakeStorage } from '../testing/fakeStorage';
 
 function use(storage: Storage | undefined): void {
   vi.stubGlobal('localStorage', storage);

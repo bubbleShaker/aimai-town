@@ -1,6 +1,8 @@
 import type { World } from '../scenario/types';
 import type { GameState } from '../engine/state';
 import { restoreState } from '../engine/restore';
+import { asRecord } from '../engine/parse';
+import { readJson, removeKey, writeJson } from './storage';
 
 /**
  * 歩みを残しておく層。副作用（localStorage）はここだけに閉じ込める。
@@ -18,64 +20,28 @@ const KEY = 'aimai-town/save';
 const VERSION = 1;
 
 export function saveState(state: GameState): void {
-  const storage = available();
-  if (!storage) return;
-  try {
-    storage.setItem(KEY, JSON.stringify({ version: VERSION, state }));
-  } catch {
-    // 保存量の上限などで失敗する。書けなくても歩みは続けられるので黙って諦める
-  }
+  writeJson(KEY, { version: VERSION, state });
 }
 
-/** 前の歩みを読み戻す。無い・壊れている・形が古いときは null（初めから始める） */
+/**
+ * 前の歩みを読み戻す。無い・壊れている・形が古いときは null（初めから始める）。
+ *
+ * 版番号を検める形は store/lore と同じだが、共通の口には畳んでいない。理由は二つ。
+ *
+ * 畳めない。中身を入れる名（`state` / `lore`）が鍵ごとに違い、すでに公開して人が遊んだ
+ * 保存がその名で書かれている。名を揃えると、その保存が読めなくなって歩みが消える。
+ *
+ * 畳まなくてよい。二つの読み戻しは方針が違う。こちらは読めなければ null（初めから）、
+ * lore は読めなければまっさら（すべて未読）で、世界を要るか要らないかも違う。
+ * 共通なのは版番号を照らす三行だけで、方針の違う二つを一本の口に通すほうが読みにくい。
+ */
 export function loadState(world: World): GameState | null {
-  const storage = available();
-  if (!storage) return null;
-  let text: string | null;
-  try {
-    text = storage.getItem(KEY);
-  } catch {
-    return null;
-  }
-  if (text === null) return null;
-
-  const saved = parse(text);
+  const saved = asRecord(readJson(KEY));
   if (!saved || saved.version !== VERSION) return null;
   return restoreState(world, saved.state);
 }
 
-/** 置いてきたものごと消す。始め直しに使う */
+/** 置いてきたものごと消す。始め直しに使う（読んだ言葉の記録は消さない。store/lore を参照） */
 export function clearSave(): void {
-  const storage = available();
-  if (!storage) return;
-  try {
-    storage.removeItem(KEY);
-  } catch {
-    // 消せなくても遊びは止めない
-  }
-}
-
-/** JSON として読めなければ null。中身の検めは engine/restore に任せる */
-function parse(text: string): { version: unknown; state: unknown } | null {
-  try {
-    const value: unknown = JSON.parse(text);
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
-    const record = value as Record<string, unknown>;
-    return { version: record.version, state: record.state };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * localStorage は「あるのに使えない」ことがある。
- * プライベートモードや設定で参照そのものが投げるので、触る前に包んで確かめる。
- * 保存が効かないことより、遊べなくなることのほうが悪い。
- */
-function available(): Storage | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
+  removeKey(KEY);
 }

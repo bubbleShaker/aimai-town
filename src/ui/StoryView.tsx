@@ -1,13 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isAtBottom } from './follow';
+import type { ShownLine } from './scene';
 import { sentSoFar, type TypeProgress, type TypeTarget } from './typewriter';
-
-/** 画面に流す一行。fragment が立っている行は断片の獲得を示す */
-export interface ShownLine {
-  speaker?: string;
-  text: string;
-  fragment?: boolean;
-}
 
 interface Props {
   /**
@@ -21,6 +15,12 @@ interface Props {
   onAdvance: () => void;
   /** 読み終えたときのボタンの文字。行き先が「もどる」でない場面で差し替える */
   doneLabel?: string;
+  /**
+   * 一字ずつ送らず、はじめから出し切るか。
+   * 一度読み切った言葉に使う（同じ言葉を二度、同じ速さで待たせないため）。
+   * 場面ごとに決まるので props で受ける。演出を減らす設定とは別に見る。
+   */
+  instant?: boolean;
 }
 
 /** 一字を送る間隔（ミリ秒）。読む速さより少し遅くして、言葉に間を作る */
@@ -76,10 +76,16 @@ function useTypewriter(target: TypeTarget, instant: boolean) {
  * 最後の一行だけが一字ずつ送られる。触れると、まずその行が出し切られ、
  * 出し切ってからもう一度触れると次へ進む。
  */
-export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる' }: Props) {
+export function StoryView({
+  lines,
+  shown,
+  onAdvance,
+  doneLabel = '▼ もどる',
+  instant = false,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // 読んでいるあいだに設定が変わることは見ない。行ごとに送り方が変わる方が戸惑わせる
-  const [instant] = useState(prefersReducedMotion);
+  const [reduced] = useState(prefersReducedMotion);
 
   const current = lines[shown - 1];
   // 場面の実体も渡す。同じ文が同じ行番号で続く場面へ移っても送り直せるように
@@ -87,7 +93,7 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
     () => ({ source: lines, lineNo: shown, text: current?.text ?? '' }),
     [lines, shown, current?.text],
   );
-  const { revealedText, typing, finish } = useTypewriter(target, instant);
+  const { revealedText, typing, finish } = useTypewriter(target, instant || reduced);
 
   const done = shown >= lines.length && !typing;
 
@@ -102,10 +108,23 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
    */
   const following = useRef(true);
 
+  /*
+   * 開いた時点で全文が入っている場面（一度読んだもの）だけは、下端ではなく冒頭を見せる。
+   * 下端に寄せると、待たせない代わりに読み返しの入口を失う。
+   * 待ち時間を消したつもりが、読み手には飛ばされたのと同じ見え方になってしまう。
+   *
+   * ここは既読（instant）だけを見る。演出を減らす設定（reduced）と混ぜてはいけない。
+   * 混ぜると、その設定の人が「まだ読んでいない」言葉を一行ずつ進めるあいだ、
+   * 行が増えて最終行に届くたび冒頭へ引き戻され、増えた行が画面の外に置き去りになる。
+   * それは assertNotLeftBehind が塞いでいる崩れ方そのもの。
+   */
+  const openedWhole = instant && shown >= lines.length;
+
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (el && following.current) el.scrollTop = el.scrollHeight;
-  }, [shown, revealedText]);
+    if (!el || !following.current) return;
+    el.scrollTop = openedWhole ? 0 : el.scrollHeight;
+  }, [shown, revealedText, openedWhole]);
 
   /** 触れたときの動き。送っている途中なら、進むより先にその行を出し切る */
   function advance() {

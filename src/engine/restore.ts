@@ -1,5 +1,6 @@
 import type { FragmentId, GateId, World } from '../scenario/types';
 import type { GameState, GateChoice } from './state';
+import { asRecord, asString } from './parse';
 import { findPlace, isSealed } from './state';
 
 /**
@@ -109,15 +110,4 @@ function knownIds(raw: unknown, known: Set<string>): string[] {
     result.push(item);
   }
   return result;
-}
-
-/** 配列は除く。JSON の配列を「キーを持つもの」として読み違えないようにするため */
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
 }
