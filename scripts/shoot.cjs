@@ -7,6 +7,15 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
 
 (async () => {
   const browser = await chromium.launch();
+  try {
+    await run(browser);
+  } finally {
+    // 途中で投げても閉じる。開いたまま落ちると chromium が残る
+    await browser.close();
+  }
+})();
+
+async function run(browser) {
   const page = await browser.newPage({
     viewport: { width: 375, height: 667 },
     deviceScaleFactor: 2,
@@ -156,6 +165,4 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
   await tap('.trace .button.is-lit');
   await page.waitForTimeout(700);
   await shot('17-restart');
-
-  await browser.close();
-})();
+}

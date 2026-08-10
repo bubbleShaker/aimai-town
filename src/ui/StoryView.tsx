@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { sentSoFar, type TypeProgress, type TypeTarget } from './typewriter';
 
 /** 画面に流す一行。fragment が立っている行は断片の獲得を示す */
 export interface ShownLine {
@@ -19,6 +20,9 @@ interface Props {
 /** 一字を送る間隔（ミリ秒）。読む速さより少し遅くして、言葉に間を作る */
 const TYPE_INTERVAL_MS = 45;
 
+/** 下端に着いているとみなす距離（px）。一行の高さに満たない程度 */
+const NEAR_BOTTOM_PX = 24;
+
 /** 演出を減らす設定の人には、一字送りをしない */
 function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -28,38 +32,32 @@ function prefersReducedMotion(): boolean {
  * いま読んでいる一行を、一字ずつ送る。
  *
  * 送った文字数は「表示の都合」なので engine にも Scene にも置かず、ここだけで持つ。
- *
- * 「何を何行目まで送ったか」を字数と対で持つのは、行が変わった瞬間に
- * 前の行の字数が新しい行にあてはまるのを防ぐため。effect の初期化を待つ作りだと、
- * 一枚だけ次の行が全文で出てしまい、その隙に触れると一字も読ませず次の場面へ行けてしまう。
- * 行番号と文面の両方を見るのは、同じ文が二行続く場合と、
- * 同じ行番号のまま別の文へ差し替わる場合の両方で送り直すため。
+ * どの行をどこまで送ったかの照らし合わせは `sentSoFar` に出してある（そこで縛れるように）。
  *
  * 数えるのはコードポイント単位。`slice` だと、サロゲートペアの文字を
  * 途中で断ち割って壊れた字を出しうるため。
  */
-function useTypewriter(text: string, lineNo: number, instant: boolean) {
-  const chars = useMemo(() => Array.from(text), [text]);
+function useTypewriter(target: TypeTarget, instant: boolean) {
+  const chars = useMemo(() => Array.from(target.text), [target.text]);
   const total = chars.length;
 
-  const [progress, setProgress] = useState({ text, lineNo, sent: 0 });
-  let sent = progress.text === text && progress.lineNo === lineNo ? progress.sent : 0;
-  if (instant) sent = total;
+  const [progress, setProgress] = useState<TypeProgress>({ ...target, sent: 0 });
+  const sent = sentSoFar(progress, target, total, instant);
 
   // 一字進むごとに次の一字を予約する。出し切ったら予約しないので自然に止まり、
   // 触れて出し切ったときも、行が変わったときも、後片付けで待ちが消える
   useEffect(() => {
     if (sent >= total) return;
-    const timer = setTimeout(() => setProgress({ text, lineNo, sent: sent + 1 }), TYPE_INTERVAL_MS);
+    const timer = setTimeout(() => setProgress({ ...target, sent: sent + 1 }), TYPE_INTERVAL_MS);
     return () => clearTimeout(timer);
-  }, [text, lineNo, sent, total]);
+  }, [target, sent, total]);
 
   return {
     /** ここまで送った分の文字列 */
     revealedText: chars.slice(0, sent).join(''),
     typing: sent < total,
     /** いまの行を出し切る */
-    finish: () => setProgress({ text, lineNo, sent: total }),
+    finish: () => setProgress({ ...target, sent: total }),
   };
 }
 
@@ -76,28 +74,35 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
   const [instant] = useState(prefersReducedMotion);
 
   const current = lines[shown - 1];
-  const { revealedText, typing, finish } = useTypewriter(current?.text ?? '', shown, instant);
+  // 場面の実体も渡す。同じ文が同じ行番号で続く場面へ移っても送り直せるように
+  const target = useMemo(
+    () => ({ source: lines, lineNo: shown, text: current?.text ?? '' }),
+    [lines, shown, current?.text],
+  );
+  const { revealedText, typing, finish } = useTypewriter(target, instant);
 
   const done = shown >= lines.length && !typing;
 
   /*
    * 行が増えるたび、また字が伸びるたび最下部へ寄せる。
    * ただし指で上へさかのぼっているあいだは追わない。一字進むたび引き戻されると読み返せない。
-   *
-   * 追うかどうかは指で動かされたときだけ決め直す。
-   * 字が伸びた後の距離で測ると、伸びた高さのぶんだけ下端から離れたと見えて追うのをやめ、
-   * 増えた行が画面の外に置き去りになる。
    */
   const following = useRef(true);
-  const placed = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (el && following.current) {
-      el.scrollTop = el.scrollHeight;
-      placed.current = el.scrollTop; // 行き着いた先は頼んだ値と違いうるので読み直す
-    }
+    if (el && following.current) el.scrollTop = el.scrollHeight;
   }, [shown, revealedText]);
+
+  /*
+   * 指やホイールで動かされたら、その場で追うのをやめる。
+   * 位置の差から人の手か機械かを見分ける作りだと、指が動かした後に
+   * 送りの上書きが先に届いた回で、さかのぼりが無かったことになる。
+   * 動かす意思そのものを入力の側で受け取れば、その競り合いが起きない。
+   */
+  function releaseFollow() {
+    following.current = false;
+  }
 
   /** 触れたときの動き。送っている途中なら、進むより先にその行を出し切る */
   function advance() {
@@ -105,6 +110,12 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
       finish();
       return;
     }
+    /*
+     * 進むと決めた人には、新しい行を必ず見せる。
+     * 読み返しで追うのをやめたまま行だけ増えると、増えた行は画面の外に出たままになり、
+     * 何も起きていないように見えて叩き続け、一行も目にしないまま次の場面へ行ける。
+     */
+    following.current = true;
     onAdvance();
   }
 
@@ -113,17 +124,19 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
       <div
         className="story-lines"
         ref={scrollRef}
+        onWheel={releaseFollow}
+        onTouchMove={releaseFollow}
         onScroll={(e) => {
+          // 下端まで戻ってきたら、また追いはじめる
           const el = e.currentTarget;
-          // こちらから合わせた分は数えない。scroll の報せは一拍遅れて届き、
-          // その頃には字が伸びて下端が動いているため、距離で測ると追うのをやめてしまう
-          if (Math.abs(el.scrollTop - placed.current) < 2) return;
-          following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+          following.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
         }}
       >
         {lines.slice(0, shown).map((line, i) => {
+          /** 断片を得た報せと括弧は送らず先に出す。閉じない鉤括弧が出たままにならないよう */
+          const dress = (body: string) => (line.fragment ? `断片を得た　「${body}」` : body);
           // 送っている途中なのは最後の一行だけ。それより前は全文が残る
-          const body = i === shown - 1 ? revealedText : line.text;
+          const isTyping = i === shown - 1 && typing;
           return (
             <p
               key={i}
@@ -132,8 +145,16 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
                 .join(' ')}
             >
               {line.speaker && <span className="line-speaker">{line.speaker}</span>}
-              {/* 断片を得た報せと括弧は送らず先に出す。閉じない鉤括弧が出たままにならないよう */}
-              {line.fragment ? `断片を得た　「${body}」` : body}
+              {isTyping ? (
+                <>
+                  {/* 送りかけの文は目にだけ見せる。欠けたまま読み上げても言葉にならないため、
+                      読み上げには全文を渡す。読み上げを急かさないよう aria-live は付けない */}
+                  <span aria-hidden="true">{dress(revealedText)}</span>
+                  <span className="sr-only">{dress(line.text)}</span>
+                </>
+              ) : (
+                dress(line.text)
+              )}
             </p>
           );
         })}
