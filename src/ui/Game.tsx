@@ -17,6 +17,9 @@ import {
   trace,
 } from '../engine/state';
 import type { GameState } from '../engine/state';
+import type { Lore, Reading } from '../engine/lore';
+import { hasRead, markRead } from '../engine/lore';
+import { loadLore, saveLore } from '../store/lore';
 import { clearSave, loadState, saveState } from '../store/save';
 import { EndingView } from './EndingView';
 import { GateView } from './GateView';
@@ -33,7 +36,18 @@ import { TraceView } from './TraceView';
  */
 type Scene =
   | { kind: 'idle' }
-  | { kind: 'reading'; lines: ShownLine[]; shown: number; then: AfterReading }
+  | {
+      kind: 'reading';
+      /**
+       * いま読んでいるのがどの読み物か。読み切ったときに覚えるために持つ。
+       * 場面を組むには必ずこれが要るので、読み物を足したとき
+       * 「覚えるのを書き忘れて、二周目でも一字ずつ送られる」が起きない。
+       */
+      reading: Reading;
+      lines: ShownLine[];
+      shown: number;
+      then: AfterReading;
+    }
   | { kind: 'choosing'; gate: Gate }
   | { kind: 'note' }
   | { kind: 'ending'; ending: Ending }
@@ -73,33 +87,60 @@ function isFacing(scene: Scene): boolean {
   }
 }
 
-/** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
-function opening(): Scene {
+/**
+ * 読み始めの場面を組む。
+ *
+ * 一度読み切ったものは、はじめから全文を開く。二周目の人に同じ言葉を
+ * 一字ずつ送り直さないため。飛ばすのではなく待ち時間だけを消すので、
+ * 全文はその場に残り、読み返しながら考えられる。
+ *
+ * 言葉の無い読み物でも一行目を開いた形にしておく（shown が 0 だと、
+ * 読んでいる行が無いまま場面だけが立つ）。
+ */
+function beginReading(
+  lore: Lore,
+  reading: Reading,
+  lines: ShownLine[],
+  then: AfterReading = { kind: 'idle' },
+): Scene {
   return {
     kind: 'reading',
-    lines: findPlace(world, world.start)!.arrival,
-    shown: 1,
-    then: { kind: 'idle' },
+    reading,
+    lines,
+    shown: hasRead(lore, reading) ? Math.max(1, lines.length) : 1,
+    then,
   };
+}
+
+/** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
+function opening(lore: Lore): Scene {
+  return beginReading(
+    lore,
+    { kind: 'arrival', placeId: world.start },
+    findPlace(world, world.start)!.arrival,
+  );
 }
 
 /**
  * 始めかたを一度だけ決める。前に歩いた記録があればそこから、無ければ町へ降りるところから。
  * 進行と場面をまとめて決めているのは、保存の読み込みを二度走らせないため。
+ * 読んだ言葉の記録もここで読む（場面を組むのに要る）。
  *
  * 続きから始めるときは到着の描写を読み直さない。もうその場所に立っているため。
  */
-function beginning(): { state: GameState; scene: Scene } {
+function beginning(): { state: GameState; scene: Scene; lore: Lore } {
+  const lore = loadLore();
   const saved = loadState(world);
   return saved
-    ? { state: saved, scene: { kind: 'idle' } }
-    : { state: createInitialState(world), scene: opening() };
+    ? { state: saved, scene: { kind: 'idle' }, lore }
+    : { state: createInitialState(world), scene: opening(lore), lore };
 }
 
 export function Game() {
   const [begun] = useState(beginning);
   const [state, setState] = useState<GameState>(begun.state);
   const [scene, setScene] = useState<Scene>(begun.scene);
+  const [lore, setLore] = useState<Lore>(begun.lore);
 
   /*
    * 進行が変わるたび書き戻す。書けない環境でも遊びは止まらない（store が飲み込む）。
@@ -114,23 +155,33 @@ export function Game() {
     saveState(state);
   }, [state]);
 
+  /*
+   * 読んだ言葉の記録は、歩みとは別に書き戻す。始め直しでも消えず周回を越える。
+   * まだ何も読み切っていないうちは書かない（記録が無いのと同じなので）。
+   * markRead は覚えているものを覚え直すと同じ参照を返すので、無駄な書き戻しも起きない。
+   */
+  useEffect(() => {
+    if (lore.readIds.length === 0) return;
+    saveLore(lore);
+  }, [lore]);
+
   const place = findPlace(world, state.currentPlaceId)!;
   const pendingGates = gatesAhead(world, state);
 
-  function read(lines: ShownLine[], then: AfterReading = { kind: 'idle' }) {
-    setScene({ kind: 'reading', lines, shown: 1, then });
+  function read(reading: Reading, lines: ShownLine[], then: AfterReading = { kind: 'idle' }) {
+    setScene(beginReading(lore, reading, lines, then));
   }
 
   /**
    * はじめから歩き直す。集めた断片も、戸に置いた選択もすべて流す。
-   * 周回に何かを持ち越すのは M5 の話なので、ここでは何も引き継がない。
+   * 持ち越すのは「一度読んだか」の記録だけで、それは lore に残る（消さない）。
    */
   function restart() {
     // 置いてきたものは保存からも消す。書き戻しは何もしていない状態を書かないので、
     // このあと消したものが上書きで戻ってくることはない
     clearSave();
     setState(createInitialState(world));
-    setScene(opening());
+    setScene(opening(lore));
   }
 
   function move(to: PlaceId) {
@@ -140,7 +191,7 @@ export function Game() {
     setState(moved);
     const firstVisit = !state.visitedPlaceIds.includes(to);
     // 初めての場所だけ、到着の描写を読ませる
-    if (firstVisit) read(findPlace(world, to)!.arrival);
+    if (firstVisit) read({ kind: 'arrival', placeId: to }, findPlace(world, to)!.arrival);
     else setScene({ kind: 'idle' });
   }
 
@@ -152,7 +203,7 @@ export function Game() {
       text: f.text,
       fragment: true,
     }));
-    read([...talk.lines, ...gained], { kind: 'finishTalk', talkId });
+    read({ kind: 'talk', talkId }, [...talk.lines, ...gained], { kind: 'finishTalk', talkId });
   }
 
   function advance() {
@@ -161,6 +212,10 @@ export function Game() {
       setScene({ ...scene, shown: scene.shown + 1 });
       return;
     }
+    // ここまで来た人は最後の一行まで読み切っている。次からは待たせない。
+    // 途中で閉じた人を覚えてしまうと、次に開いたとき一行も目にしないまま通過できる
+    setLore(markRead(lore, scene.reading));
+
     // 読み終えた時点ではじめて、断片が身につき、扉が開く。
     // 変化を起こす行動は engine に投げ、その結果を見てから画面を決める
     const then = scene.then;
@@ -209,6 +264,8 @@ export function Game() {
             shown={scene.shown}
             onAdvance={advance}
             doneLabel={scene.then.kind === 'ending' ? '▼ 灯を見る' : undefined}
+            /* 一度読み切った言葉は、送らずそのまま出す */
+            instant={hasRead(lore, scene.reading)}
           />
         )}
 
@@ -227,7 +284,10 @@ export function Game() {
                 className="button is-lit"
                 onClick={() => {
                   const ending = resolveEnding(world, state);
-                  read(ending.lines, { kind: 'ending', ending });
+                  read({ kind: 'ending', endingId: ending.id }, ending.lines, {
+                    kind: 'ending',
+                    ending,
+                  });
                 }}
               >
                 水に映る灯を見る
@@ -237,7 +297,12 @@ export function Game() {
               <button
                 key={gate.id}
                 className="button is-gate"
-                onClick={() => read(gate.prologue, { kind: 'choosing', gate })}
+                onClick={() =>
+                  read({ kind: 'gate', gateId: gate.id }, gate.prologue, {
+                    kind: 'choosing',
+                    gate,
+                  })
+                }
               >
                 {gate.name}の前に立つ
               </button>
@@ -255,11 +320,11 @@ export function Game() {
             tension={gateTension(world, scene.gate)}
             hand={offerableFragments(world, state, scene.gate)}
             onOffer={(fragmentId) =>
-              read(gateResponse(scene.gate, fragmentId).lines, {
-                kind: 'openGate',
-                gate: scene.gate,
-                fragmentId,
-              })
+              read(
+                { kind: 'reply', gateId: scene.gate.id, fragmentId },
+                gateResponse(scene.gate, fragmentId).lines,
+                { kind: 'openGate', gate: scene.gate, fragmentId },
+              )
             }
             onLeave={() => setScene({ kind: 'idle' })}
           />

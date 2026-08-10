@@ -21,6 +21,12 @@ interface Props {
   onAdvance: () => void;
   /** 読み終えたときのボタンの文字。行き先が「もどる」でない場面で差し替える */
   doneLabel?: string;
+  /**
+   * 一字ずつ送らず、はじめから出し切るか。
+   * 一度読み切った言葉に使う（同じ言葉を二度、同じ速さで待たせないため）。
+   * 場面ごとに決まるので props で受ける。演出を減らす設定とは別に見る。
+   */
+  instant?: boolean;
 }
 
 /** 一字を送る間隔（ミリ秒）。読む速さより少し遅くして、言葉に間を作る */
@@ -76,10 +82,16 @@ function useTypewriter(target: TypeTarget, instant: boolean) {
  * 最後の一行だけが一字ずつ送られる。触れると、まずその行が出し切られ、
  * 出し切ってからもう一度触れると次へ進む。
  */
-export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる' }: Props) {
+export function StoryView({
+  lines,
+  shown,
+  onAdvance,
+  doneLabel = '▼ もどる',
+  instant = false,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // 読んでいるあいだに設定が変わることは見ない。行ごとに送り方が変わる方が戸惑わせる
-  const [instant] = useState(prefersReducedMotion);
+  const [reduced] = useState(prefersReducedMotion);
 
   const current = lines[shown - 1];
   // 場面の実体も渡す。同じ文が同じ行番号で続く場面へ移っても送り直せるように
@@ -87,7 +99,7 @@ export function StoryView({ lines, shown, onAdvance, doneLabel = '▼ もどる'
     () => ({ source: lines, lineNo: shown, text: current?.text ?? '' }),
     [lines, shown, current?.text],
   );
-  const { revealedText, typing, finish } = useTypewriter(target, instant);
+  const { revealedText, typing, finish } = useTypewriter(target, instant || reduced);
 
   const done = shown >= lines.length && !typing;
 
