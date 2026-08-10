@@ -20,6 +20,8 @@ const URL = process.argv[3] || 'http://127.0.0.1:5199/aimai-town/';
 });
 
 async function run(browser) {
+  await assertStillWhenReduced(browser);
+
   const page = await browser.newPage({
     viewport: { width: 375, height: 667 },
     deviceScaleFactor: 2,
@@ -102,6 +104,7 @@ async function run(browser) {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
   await shot('01-arrival');
+  await assertFogDrifts(page);
 
   await read();
   await shot('02-actions');
@@ -209,4 +212,53 @@ async function run(browser) {
   await tap('.trace .button.is-lit');
   await page.waitForTimeout(700);
   await shot('17-restart');
+}
+
+/**
+ * いま動いているものの名前。疑似要素の分もここに出る。
+ * 移り変わり（transition）は animationName を持たないので、動いている性質の名前で拾う。
+ * 落とすと「アニメーションは止めたが移り変わりは動いたまま」を見逃すことになる。
+ */
+async function runningNames(page) {
+  return page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.playState === 'running')
+      .map((a) => a.animationName ?? a.transitionProperty)
+      .filter(Boolean),
+  );
+}
+
+/**
+ * 霧が流れていることを見る。
+ * 一枚の絵には映らないので、止まっても撮った絵からは気づけない。
+ * 名前の頭で見て枚数を数えないのは、層を足しても減らしても引っかからないようにするため。
+ */
+async function assertFogDrifts(page) {
+  const names = await runningNames(page);
+  if (!names.some((n) => n.startsWith('drift-'))) {
+    throw new Error(`霧が流れていない（動いているのは ${names.join(', ') || 'なし'}）`);
+  }
+}
+
+/**
+ * 動きを減らす設定の人には、何も動かないことを見る。
+ * 通しプレイとは関わりが無いので、撮る前に済ませる（ここで落ちるなら早いほうがいい）。
+ * 撮る画面ではないので、確かめ終えたら閉じる。
+ */
+async function assertStillWhenReduced(browser) {
+  const page = await browser.newPage({
+    viewport: { width: 375, height: 667 },
+    reducedMotion: 'reduce',
+  });
+  try {
+    await page.goto(URL, { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    const names = await runningNames(page);
+    if (names.length > 0) {
+      throw new Error(`動きを減らす設定でも動いている: ${names.join(', ')}`);
+    }
+  } finally {
+    await page.close();
+  }
 }

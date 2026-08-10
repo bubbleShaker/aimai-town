@@ -44,12 +44,24 @@ export function MapView({ world, state, onMove }: Props) {
         // まだ入れない場所は、閉ざされていることが分かるように描く。
         // 何が閉ざしているか（扉か、終幕の条件か）は engine の判断に任せる
         const locked = isSealed(world, state, place.id);
+        /*
+         * まだ知らない場所。名前を伏せることと、霧に沈めることを同じ一つの判定から出す。
+         * 二箇所に書くと、片方だけ書き換えたときに「名は出ているのに沈んでいる」場所ができる。
+         */
+        const unknown = !visited && !here;
         return (
           <button
             key={place.id}
             /* 名前は訪れるまで伏せてあるので、通しプレイの撮影はこの id で灯を掴む */
             data-place={place.id}
-            className={['place', here && 'is-here', reachable && 'is-reachable', locked && 'is-locked']
+            className={[
+              'place',
+              here && 'is-here',
+              reachable && 'is-reachable',
+              locked && 'is-locked',
+              // 知らない場所は霧の向こうに置く。名前を伏せているのと同じ遠さを、光でも出す
+              unknown && 'is-far',
+            ]
               .filter(Boolean)
               .join(' ')}
             style={{ left: `${place.x}%`, top: `${place.y}%` }}
@@ -58,7 +70,7 @@ export function MapView({ world, state, onMove }: Props) {
             aria-current={here ? 'location' : undefined}
           >
             <span className="place-dot" />
-            <span className="place-name">{visited || here ? place.name : '？'}</span>
+            <span className="place-name">{unknown ? '？' : place.name}</span>
           </button>
         );
       })}
