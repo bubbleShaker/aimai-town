@@ -49,7 +49,14 @@ export function MapView({ world, state, onMove }: Props) {
             key={place.id}
             /* 名前は訪れるまで伏せてあるので、通しプレイの撮影はこの id で灯を掴む */
             data-place={place.id}
-            className={['place', here && 'is-here', reachable && 'is-reachable', locked && 'is-locked']
+            className={[
+              'place',
+              here && 'is-here',
+              reachable && 'is-reachable',
+              locked && 'is-locked',
+              // まだ訪れていない場所は霧の向こうに置く。名前を伏せているのと同じ「遠さ」を光でも出す
+              !visited && !here && 'is-far',
+            ]
               .filter(Boolean)
               .join(' ')}
             style={{ left: `${place.x}%`, top: `${place.y}%` }}

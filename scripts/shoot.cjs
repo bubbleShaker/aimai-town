@@ -102,6 +102,7 @@ async function run(browser) {
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
   await shot('01-arrival');
+  await assertFogDrifts(page);
 
   await read();
   await shot('02-actions');
@@ -209,4 +210,50 @@ async function run(browser) {
   await tap('.trace .button.is-lit');
   await page.waitForTimeout(700);
   await shot('17-restart');
+
+  await assertStillWhenReduced(browser);
+}
+
+/** いま動いているアニメーションの名前。疑似要素の分もここに出る */
+const runningNames = (page) =>
+  page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.playState === 'running')
+      .map((a) => a.animationName)
+      .filter(Boolean),
+  );
+
+/**
+ * 霧が流れていることを見る。
+ * 一枚の絵には映らないので、止まっても撮った絵からは気づけない。
+ * 名前の頭で見るのは、層を足したり速さを変えたりしても引っかからないようにするため。
+ */
+async function assertFogDrifts(page) {
+  const names = await runningNames(page);
+  const drifting = names.filter((n) => n.startsWith('drift-'));
+  if (drifting.length < 2) {
+    throw new Error(`霧が流れていない（動いているのは ${names.join(', ') || 'なし'}）`);
+  }
+}
+
+/**
+ * 動きを減らす設定の人には、何も動かないことを見る。
+ * 撮る画面ではないので、確かめ終えたら閉じる。
+ */
+async function assertStillWhenReduced(browser) {
+  const page = await browser.newPage({
+    viewport: { width: 375, height: 667 },
+    reducedMotion: 'reduce',
+  });
+  try {
+    await page.goto(URL, { waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    const names = await runningNames(page);
+    if (names.length > 0) {
+      throw new Error(`動きを減らす設定でも動いている: ${names.join(', ')}`);
+    }
+  } finally {
+    await page.close();
+  }
 }

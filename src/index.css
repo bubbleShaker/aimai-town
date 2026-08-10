@@ -112,6 +112,45 @@ body {
   overflow: hidden;
 }
 
+/*
+ * 霧の層。町の上をゆっくり流れる。
+ * 二枚を別々の速さで動かすのは、一枚だと周期が読めて「回っている」と見えてしまうため。
+ * 動かすのは transform だけにする（背景を描き直さないので、出しっぱなしでも重くならない）。
+ * はみ出す分を inset で先に取っておくのは、動かした先に地が出ないようにするため。
+ *
+ * ::after は場所（.place）より後ろに置かれるので、霧は灯の手前を流れる。
+ * そう見えてほしいので直さない。タップは pointer-events で通す。
+ */
+.map::before,
+.map::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+}
+
+.map::before {
+  background:
+    radial-gradient(38% 46% at 32% 38%, rgba(150, 170, 195, 0.1), transparent 70%),
+    radial-gradient(30% 40% at 74% 68%, rgba(150, 170, 195, 0.07), transparent 70%);
+  animation: drift-far 41s ease-in-out infinite;
+}
+
+.map::after {
+  background: radial-gradient(44% 32% at 56% 26%, rgba(130, 150, 180, 0.08), transparent 72%);
+  animation: drift-near 27s ease-in-out infinite;
+}
+
+@keyframes drift-far {
+  0%, 100% { transform: translate3d(-4%, 1.5%, 0) scale(1.04); }
+  50% { transform: translate3d(5%, -2%, 0) scale(1); }
+}
+
+@keyframes drift-near {
+  0%, 100% { transform: translate3d(6%, -1%, 0) scale(1); }
+  50% { transform: translate3d(-6%, 2.5%, 0) scale(1.06); }
+}
+
 .map-roads {
   position: absolute;
   inset: 0;
@@ -173,10 +212,37 @@ body {
   color: var(--lamp);
 }
 
+/*
+ * 移った先の灯は、着いてから一拍おいてともる。
+ * 揺れ（flicker）は、ともり終えてから始める。重ねると、ともる途中で暗転したように見える。
+ */
 .place.is-here .place-dot {
   background: var(--lamp);
   box-shadow: 0 0 14px 4px rgba(232, 185, 106, 0.35);
-  animation: flicker 3.5s ease-in-out infinite;
+  animation:
+    lamp-rise 0.9s ease-out,
+    flicker 3.5s ease-in-out 0.9s infinite;
+}
+
+/*
+ * まだ訪れていない場所は霧に沈める。名前を「？」で伏せているのと同じ遠さを、光でも出す。
+ * 消し切らないのは、そこに何かがあることまで隠すと、町の形が読めなくなるため。
+ */
+.place.is-far {
+  opacity: 0.5;
+}
+
+/* 歩ける先だけは沈めきらない。行けることが読めないと、次の一歩を探せなくなる */
+.place.is-far.is-reachable {
+  opacity: 0.72;
+}
+
+/*
+ * 沈めるのは滲みではなく光量で。ぼかすと灯のにじみが広がり、
+ * 遠い灯のほうが大きく明るく見えて、近づいた場所と逆転する。
+ */
+.place.is-far.is-reachable .place-dot {
+  box-shadow: 0 0 5px 1px rgba(232, 185, 106, 0.14);
 }
 
 /* 灯はわずかに揺れている */
@@ -184,6 +250,18 @@ body {
   0%, 100% { opacity: 1; }
   45% { opacity: 0.72; }
   70% { opacity: 0.92; }
+}
+
+/*
+ * ともる途中。to は書かず、書かれていない側は要素そのものの値に落ち着く
+ * （揺れへ渡すとき、明るさが飛ばないようにするため）。
+ */
+@keyframes lamp-rise {
+  from {
+    background: var(--lamp-dim);
+    box-shadow: 0 0 0 0 rgba(232, 185, 106, 0);
+    opacity: 0.45;
+  }
 }
 
 /* ── 下段パネル ────────────────────────── */
@@ -501,6 +579,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1.1rem;
+  /* 町は畳まれていて霧が見えないので、選んだ灯のまわりにだけ明かりの余韻を置く */
+  background: radial-gradient(60% 34% at 50% 42%, rgba(232, 185, 106, 0.06), transparent 70%);
 }
 
 .ending-lead {
@@ -519,7 +599,18 @@ body {
   text-indent: 0.3em;
   color: var(--lamp);
   text-shadow: 0 0 24px rgba(232, 185, 106, 0.3);
-  animation: emerge 1.4s ease-out;
+  /*
+   * 浮かび上がったあと、灯は息をする。動かすのは滲みだけで、字そのものは薄くしない
+   * （読んでいる最中に文字が消え入ると、読み終えたのか分からなくなる）。
+   */
+  animation:
+    emerge 1.4s ease-out,
+    lamp-breath 9s ease-in-out 1.4s infinite;
+}
+
+@keyframes lamp-breath {
+  0%, 100% { text-shadow: 0 0 24px rgba(232, 185, 106, 0.3); }
+  50% { text-shadow: 0 0 42px rgba(232, 185, 106, 0.5); }
 }
 
 /*
@@ -622,8 +713,13 @@ body {
   margin-top: 2.2rem;
 }
 
-/* 動きを減らす設定の端末では、灯も言葉も静止させる */
+/*
+ * 動きを減らす設定の端末では、霧も灯も言葉も静止させる。
+ * 霧そのものは消さない（動かないだけで、町が霧の中にあることは見えていてほしい）。
+ */
 @media (prefers-reduced-motion: reduce) {
+  .map::before,
+  .map::after,
   .place.is-here .place-dot,
   .ending-name {
     animation: none;
