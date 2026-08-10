@@ -47,6 +47,21 @@ describe('世界の id', () => {
     ];
     expect(ids.filter((id) => id.includes(':'))).toEqual([]);
   });
+
+  /**
+   * 上限は「書き換えられた記録が際限なく膨らむ」ことだけを防ぐためのもので、
+   * 普通に遊んだ人の記録が上限に触れてはいけない（触れると古いものから未読に戻り、
+   * 一度読んだ言葉がまた一字ずつ送られる）。
+   * シナリオを書き足す人が lore.ts を読まなくて済むよう、ここで数えておく。
+   */
+  it('町の読み物をすべて読んでも、覚えておく上限には届かない', () => {
+    const talks = world.places.flatMap((p) => p.talks).length;
+    // 戸の返答は、どの断片を差し出したかで別の読み物になる
+    const replies = world.gates.length * world.fragments.length;
+    const readings =
+      world.places.length + talks + world.gates.length + replies + Object.keys(world.endings).length;
+    expect(readings).toBeLessThan(READING_LIMIT);
+  });
 });
 
 describe('markRead / hasRead', () => {
@@ -106,7 +121,14 @@ describe('restoreLore', () => {
   });
 
   it('書き換えられて際限なく膨らんだ記録は、上限まで切り詰める', () => {
-    const swollen = Array.from({ length: READING_LIMIT + 10 }, (_, i) => `talk:t${i}`);
-    expect(restoreLore({ readIds: swollen }).readIds).toHaveLength(READING_LIMIT);
+    // 桁を上げて試すのは、全長をなめてから切り詰める作りだと
+    // ここで町が開かなくなるため（切るのが先か後かは、件数を増やさないと現れない）
+    const swollen = Array.from({ length: READING_LIMIT * 100 }, (_, i) => `talk:t${i}`);
+    const started = performance.now();
+    const restored = restoreLore({ readIds: swollen });
+    expect(restored.readIds).toHaveLength(READING_LIMIT);
+    // いちばん近ごろの記録が残る
+    expect(restored.readIds.at(-1)).toBe(`talk:t${READING_LIMIT * 100 - 1}`);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });

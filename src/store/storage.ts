@@ -43,7 +43,7 @@ export function readJson(key: string): unknown {
   }
 }
 
-export function remove(key: string): void {
+export function removeKey(key: string): void {
   const storage = available();
   if (!storage) return;
   try {

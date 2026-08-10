@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyLore, markRead } from '../engine/lore';
 import { createInitialState, reduce } from '../engine/state';
 import { world } from '../scenario';
-import { fakeStorage } from './fakeStorage';
+import { fakeStorage } from '../testing/fakeStorage';
 import { loadLore, saveLore } from './lore';
 import { clearSave, saveState } from './save';
 

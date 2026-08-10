@@ -2,7 +2,7 @@ import type { World } from '../scenario/types';
 import type { GameState } from '../engine/state';
 import { restoreState } from '../engine/restore';
 import { asRecord } from '../engine/parse';
-import { readJson, remove, writeJson } from './storage';
+import { readJson, removeKey, writeJson } from './storage';
 
 /**
  * 歩みを残しておく層。副作用（localStorage）はここだけに閉じ込める。
@@ -23,14 +23,20 @@ export function saveState(state: GameState): void {
   writeJson(KEY, { version: VERSION, state });
 }
 
-/** 前の歩みを読み戻す。無い・壊れている・形が古いときは null（初めから始める） */
+/**
+ * 前の歩みを読み戻す。無い・壊れている・形が古いときは null（初めから始める）。
+ *
+ * 版番号を検める形は store/lore と同じだが、共通の口には畳んでいない。
+ * 中身を入れる名（`state` / `lore`）が鍵ごとに違い、すでに公開して人が遊んだ保存が
+ * その名で書かれているため。名を揃えると、その保存が読めなくなって歩みが消える。
+ */
 export function loadState(world: World): GameState | null {
   const saved = asRecord(readJson(KEY));
   if (!saved || saved.version !== VERSION) return null;
   return restoreState(world, saved.state);
 }
 
-/** 置いてきたものごと消す。始め直しに使う */
+/** 置いてきたものごと消す。始め直しに使う（読んだ言葉の記録は消さない。store/lore を参照） */
 export function clearSave(): void {
-  remove(KEY);
+  removeKey(KEY);
 }

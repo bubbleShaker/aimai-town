@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { world } from '../scenario';
-import type { Ending, FragmentId, Gate, PlaceId, TalkId } from '../scenario/types';
+import type { PlaceId, TalkId } from '../scenario/types';
 import {
   collectedFragments,
   createInitialState,
@@ -18,7 +18,7 @@ import {
 } from '../engine/state';
 import type { GameState } from '../engine/state';
 import type { Lore, Reading } from '../engine/lore';
-import { hasRead, markRead } from '../engine/lore';
+import { markRead } from '../engine/lore';
 import { loadLore, saveLore } from '../store/lore';
 import { clearSave, loadState, saveState } from '../store/save';
 import { EndingView } from './EndingView';
@@ -27,90 +27,9 @@ import { MapView } from './MapView';
 import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
 import type { ShownLine } from './StoryView';
+import type { AfterReading, Scene } from './scene';
+import { beginReading, isFacing } from './scene';
 import { TraceView } from './TraceView';
-
-/**
- * 画面の状態。ゲームの進行そのもの（GameState）とは分けて持つ。
- * 「対話の何行目を読んでいるか」はセーブしても意味がない情報なので、engine には置かない。
- * 扉は id ではなく実体で持つ。引き直しに失敗して画面が空になる経路を型で消すため。
- */
-type Scene =
-  | { kind: 'idle' }
-  | {
-      kind: 'reading';
-      /**
-       * いま読んでいるのがどの読み物か。読み切ったときに覚えるために持つ。
-       * 場面を組むには必ずこれが要るので、読み物を足したとき
-       * 「覚えるのを書き忘れて、二周目でも一字ずつ送られる」が起きない。
-       */
-      reading: Reading;
-      lines: ShownLine[];
-      shown: number;
-      then: AfterReading;
-    }
-  | { kind: 'choosing'; gate: Gate }
-  | { kind: 'note' }
-  | { kind: 'ending'; ending: Ending }
-  | { kind: 'trace' };
-
-/**
- * 読み終えたときに何が起きるか。
- * 手続きではなくデータとして持たせておくと、扉やエンディングが増えても
- * 「読む」処理そのものは変えずに済む。
- */
-type AfterReading =
-  | { kind: 'idle' }
-  | { kind: 'finishTalk'; talkId: TalkId }
-  | { kind: 'choosing'; gate: Gate }
-  | { kind: 'openGate'; gate: Gate; fragmentId: FragmentId }
-  | { kind: 'ending'; ending: Ending };
-
-/**
- * 町を畳んで手もとだけを見せる場面か。戸の前と、終わったあと。
- * 配列で持たず switch で書くのは、Scene に枝を足したときに
- * 書き忘れが黙って「町が見えたまま」に落ちないようにするため。
- */
-function isFacing(scene: Scene): boolean {
-  switch (scene.kind) {
-    case 'choosing':
-    case 'ending':
-    case 'trace':
-      return true;
-    case 'idle':
-    case 'reading':
-    case 'note':
-      return false;
-    default: {
-      const exhaustive: never = scene;
-      throw new Error(`未処理の場面: ${JSON.stringify(exhaustive)}`);
-    }
-  }
-}
-
-/**
- * 読み始めの場面を組む。
- *
- * 一度読み切ったものは、はじめから全文を開く。二周目の人に同じ言葉を
- * 一字ずつ送り直さないため。飛ばすのではなく待ち時間だけを消すので、
- * 全文はその場に残り、読み返しながら考えられる。
- *
- * 言葉の無い読み物でも一行目を開いた形にしておく（shown が 0 だと、
- * 読んでいる行が無いまま場面だけが立つ）。
- */
-function beginReading(
-  lore: Lore,
-  reading: Reading,
-  lines: ShownLine[],
-  then: AfterReading = { kind: 'idle' },
-): Scene {
-  return {
-    kind: 'reading',
-    reading,
-    lines,
-    shown: hasRead(lore, reading) ? Math.max(1, lines.length) : 1,
-    then,
-  };
-}
 
 /** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
 function opening(lore: Lore): Scene {
@@ -264,8 +183,8 @@ export function Game() {
             shown={scene.shown}
             onAdvance={advance}
             doneLabel={scene.then.kind === 'ending' ? '▼ 灯を見る' : undefined}
-            /* 一度読み切った言葉は、送らずそのまま出す */
-            instant={hasRead(lore, scene.reading)}
+            /* 一度読み切った言葉は、送らずそのまま出す。どこまで開くかと同じ拍で決めてある */
+            instant={scene.instant}
           />
         )}
 

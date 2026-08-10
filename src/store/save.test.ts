@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { world } from '../scenario';
 import { createInitialState, reduce } from '../engine/state';
 import { clearSave, loadState, saveState } from './save';
-import { fakeStorage } from './fakeStorage';
+import { fakeStorage } from '../testing/fakeStorage';
 
 function use(storage: Storage | undefined): void {
   vi.stubGlobal('localStorage', storage);

@@ -114,10 +114,18 @@ export function StoryView({
    */
   const following = useRef(true);
 
+  /*
+   * 開いた時点で全文が入っている場面（一度読んだもの）だけは、下端ではなく冒頭を見せる。
+   * 下端に寄せると、待たせない代わりに読み返しの入口を失う。
+   * 待ち時間を消したつもりが、読み手には飛ばされたのと同じ見え方になってしまう。
+   */
+  const openedWhole = instant && shown >= lines.length;
+
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (el && following.current) el.scrollTop = el.scrollHeight;
-  }, [shown, revealedText]);
+    if (!el || !following.current) return;
+    el.scrollTop = openedWhole ? 0 : el.scrollHeight;
+  }, [shown, revealedText, openedWhole]);
 
   /** 触れたときの動き。送っている途中なら、進むより先にその行を出し切る */
   function advance() {

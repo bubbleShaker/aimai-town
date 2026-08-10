@@ -70,7 +70,12 @@ async function run(browser) {
   const readingShape = () =>
     page.evaluate(() => ({
       lines: document.querySelectorAll('.story-lines .line').length,
-      done: !(document.querySelector('.story-next')?.textContent ?? '').includes('つづける'),
+      /*
+       * 読み終えたことは、読み終えた側の文字で見る。
+       * 「つづける でないこと」で見ると、物語欄そのものが消えていても
+       * 読み終えたことになり、検めが空振りで通ってしまう。
+       */
+      done: /もどる|灯を見る/.test(document.querySelector('.story-next')?.textContent ?? ''),
     }));
 
   /**
@@ -93,6 +98,30 @@ async function run(browser) {
     const { lines, done } = await readingShape();
     if (lines < 2 || !done) {
       throw new Error(`一度読んだ言葉が、また一字ずつ送られている（${lines} 行 / 読了=${done}）`);
+    }
+  };
+
+  /**
+   * 一度読んだ言葉を開いたとき、下端ではなく冒頭が見えることを見る。
+   * 全文が出ていても下端に寄っていると、読み手には飛ばされたのと同じに見える。
+   * 待ち時間だけを消すつもりが、読み返しの入口を失っていないかの確認。
+   *
+   * 画面からあふれる長さの読み物で呼ぶこと（あふれなければ、冒頭も下端も同じ位置になる）。
+   */
+  const assertOpensAtTop = async () => {
+    const { lines, done } = await readingShape();
+    if (lines < 2 || !done) {
+      throw new Error(`一度読んだ言葉が、また一字ずつ送られている（${lines} 行 / 読了=${done}）`);
+    }
+    const shape = await page.locator('.story-lines').evaluate((el) => ({
+      overflowing: el.scrollHeight - el.clientHeight > 40,
+      top: el.scrollTop,
+    }));
+    if (!shape.overflowing) {
+      throw new Error('あふれない読み物では、冒頭から見えているかを確かめられない');
+    }
+    if (shape.top > 4) {
+      throw new Error(`一度読んだ言葉が、冒頭ではなく途中から開いている（${shape.top}px 下）`);
     }
   };
 
@@ -250,6 +279,12 @@ async function run(browser) {
   await shot('17-restart');
   // 二周目。降りてきた言葉は一度読んでいるので、もう待たせない
   await assertNoWaitOnReread();
+  await read();
+
+  // 一周目に読んだ長い対話をもう一度開く。全文が出たうえで、冒頭から見えていること
+  await tap('.button >> nth=0');
+  await assertOpensAtTop();
+  await shot('18-reread');
 }
 
 /**

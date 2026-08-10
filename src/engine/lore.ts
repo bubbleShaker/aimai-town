@@ -102,20 +102,30 @@ export function restoreLore(raw: unknown): Lore {
   if (!saved) return emptyLore();
   if (!Array.isArray(saved.readIds)) return emptyLore();
 
+  /*
+   * 見る前に切る。書き換えられた記録は際限なく長くなりうるので、
+   * 全長をなめてから切り詰めると、町が開くまでの数秒をそこで使ってしまう。
+   * 重複も見分けは Set に任せる（一件ごとに配列を舐めると二乗に膨らむ）。
+   */
+  const seen = new Set<ReadingId>();
   const readIds: ReadingId[] = [];
-  for (const item of saved.readIds) {
+  for (const item of trim(saved.readIds)) {
     if (typeof item !== 'string' || item === '') continue;
-    if (readIds.includes(item)) continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
     readIds.push(item);
   }
-  return { readIds: trim(readIds) };
+  return { readIds };
 }
 
 function join(...parts: string[]): ReadingId {
   return parts.join(SEPARATOR);
 }
 
-/** あふれたら古いほうから忘れる。近ごろ読んだものほど、また読む見込みが高い */
-function trim(readIds: ReadingId[]): ReadingId[] {
-  return readIds.length > READING_LIMIT ? readIds.slice(readIds.length - READING_LIMIT) : readIds;
+/**
+ * あふれたら古いほうから忘れる。近ごろ読んだものほど、また読む見込みが高い。
+ * 読み戻すときは中身を検める前にこれを通すので、まだ文字列とは限らないものも受ける。
+ */
+function trim<T>(items: T[]): T[] {
+  return items.length > READING_LIMIT ? items.slice(items.length - READING_LIMIT) : items;
 }
