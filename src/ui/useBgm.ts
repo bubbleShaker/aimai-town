@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { loadSoundOn, saveSoundOn } from '../store/sound';
 
 /**
@@ -112,17 +112,24 @@ export function useBgm(): Bgm {
   const soundedOnceRef = useRef(false);
   const [on, setOn] = useState(loadSoundOn);
   /**
-   * 触れた回数。
-   * ブラウザは、触れる前のページに音を出させない（開いた瞬間に鳴るページを防ぐため）。
-   * その制約に合わせるだけでなく、開いた途端に鳴らして驚かせないためでもある。
+   * 鳴らす側かどうかを、描き直しを待たずに読めるところへ写しておく。
    *
-   * 数えるのは、一度で諦めないため。最初の触れが「活性化」として認められない端末
-   * （iOS の見立ては Chromium より厳しい）でそこで打ち切ると、♪ は点いたまま
-   * 二度と鳴らない画面になる。鳴り出すまでは、触れるたびに試し直す。
+   * 鳴らし始めは触れの中で同期に走るので、そこから見えるのは「いま画面に描かれている on」
+   * ではなく「いまこの瞬間の on」でなければならない。止める側へ倒した直後、
+   * 触れを拾う耳が外れるのは描き直しのあとで、そのあいだの触れは
+   * 止めたはずの人のために音を組みにいってしまう。
    */
-  const [touches, setTouches] = useState(0);
+  const onRef = useRef(on);
   /**
-   * いま鳴っているか。鳴っていれば触れを数える必要がない。
+   * 止める段取りの控え。effect の後片付けだけに任せない。
+   *
+   * 消えかけ（0.6 秒）の終わり際に鳴らす側へ戻されると、後片付けが走る前に
+   * 段取りが満期を迎え、鳴らし直したそばから pause され、♪ は点いたまま無音になる。
+   * 鳴らし始めが同期なら、その取り消しも同期でなければ間に合わない。
+   */
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * いま鳴っているか。鳴っていれば、触れを拾い続ける必要がない。
    * 端末の側（別のアプリ、耳もとの操作）で止められたときも false に戻るので、
    * そのあと画面に触れれば鳴り直す。
    */
@@ -141,60 +148,34 @@ export function useBgm(): Bgm {
     };
   }, []);
 
-  useEffect(() => {
-    // 数えるのは、鳴らそうとしていて、まだ鳴っていないあいだだけ。
-    // 止めている人の触れまで数えると、いちばん軽くあるべき人の画面が
-    // 触れるたびに動くことになる
-    if (sounding || !on) return;
-    const notice = () => setTouches((n) => n + 1);
-    // 掴み取りの側（capture）で拾う。本文の触れは選択中などで途中で止まることがあり、
-    // 昇ってくるのを待つと、その分だけ音が始まらない
-    const opts = { capture: true } as const;
-    window.addEventListener('pointerdown', notice, opts);
-    window.addEventListener('keydown', notice, opts);
-    return () => {
-      window.removeEventListener('pointerdown', notice, opts);
-      window.removeEventListener('keydown', notice, opts);
-    };
-  }, [on, sounding]);
-
-  useEffect(() => {
+  /**
+   * 鳴らし始める。**触れを受け取ったその場から、同期で呼ぶ**こと。
+   *
+   * ここを effect の中（＝触れの一拍あと）でやると、iOS では音が出ない。
+   * あちらは「いまの呼び出しが人の触れから続いているか」を呼び出し元の連なりで見ており、
+   * 一度画面を描いてから呼び直したものは、触れの続きと認められずに拒まれる。
+   * 拒まれ続けると、♪ は点いたまま二度と鳴らない画面になる（それが issue #25 の姿）。
+   *
+   * state を経由しないのはそのため。触れた回数を数えて effect に渡す作りに戻さないこと。
+   *
+   * 呼ぶのは、鳴らすと決まっているときだけ。止めている人のためには何も組まない
+   * （通り道を組むと、鳴らさないと決めた端末で音の口が開きっぱなしになる。
+   * iOS では、それだけで他のアプリの音を止めうる）。
+   */
+  const start = useCallback(() => {
+    // 止める側へ倒したあとの触れでは組まない。描き直しを待たない ref で検める
+    if (!onRef.current) return;
     const audio = ref.current;
-    // 触れるまでは何もしない。ここで play を呼ばないから、開いた直後は必ず無音
-    if (!audio || touches === 0) return;
+    if (!audio) return;
 
-    if (!on) {
-      /*
-       * 止めている人のためには何も組まない。
-       * 通り道を組むと、鳴らさないと決めた端末で音の口が開きっぱなしになる
-       * （iOS では、それだけで他のアプリの音を止めうる）。
-       * まだ組まれていないなら、そもそも鳴っていないので止める相手もいない。
-       */
-      const chain = chainRef.current;
-      if (!chain) return;
-      // 消えてから止める。鳴らしたままにすると、止めたつもりの人の電池を使い続ける
-      ramp(chain.gain, 0, FADE_BACK_S);
-      const timer = setTimeout(() => {
-        /*
-         * 傾きの終わりと、時を計る側のずれで、ごくわずかな音が残ることがある。
-         * 眠らせるとその高さで凍り、次に起こしたとき残りから始まるので、先に落とし切る。
-         */
-        const now = chain.ctx.currentTime;
-        chain.gain.gain.cancelScheduledValues(now);
-        chain.gain.gain.setValueAtTime(0, now);
-        audio.pause();
-        /*
-         * 通り道は畳まず、眠らせる。
-         * 畳む（close）と同じ audio 要素に源を作り直せず、二度と鳴らない画面になる。
-         * かといって起こしたままにすると、止めた人の端末が音の口を掴み続ける
-         * （iOS では、それだけで他のアプリの音を止めうる）。
-         *
-         * 眠らせるのは消え切ってから。眠っているあいだは時が進まないので、
-         * 消しかけで眠らせると、その高さのまま凍る。
-         */
-        void chain.ctx.suspend().catch(() => {});
-      }, FADE_BACK_S * 1000);
-      return () => clearTimeout(timer);
+    /*
+     * 止める段取りが残っていたら、ここで取り消す。
+     * 後片付け（effect の cleanup）に任せると描き直しのあとになり、
+     * 消えかけの終わり際に戻された一度が、鳴り出したそばから止められる。
+     */
+    if (stopTimerRef.current !== null) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
     }
 
     if (!triedRef.current) {
@@ -206,15 +187,99 @@ export function useBgm(): Bgm {
     if (!chain) return;
 
     /*
-     * 通り道は眠っていることがある（触れる前に生まれたときと、止めて眠らせたあと）。
+     * 通り道は眠っていることがある（止めて眠らせたあと）。
      * 触れた今なら起こせるので、鳴らす前に必ず起こす。
      * 起こし損ねると、audio は動いているのに音だけ出ない、いちばん分かりにくい形になる。
      */
     void chain.ctx.resume().catch(() => {});
     // 鳴らせないことはある（音源が無い、端末が拒む）。黙って諦める。
-    // 拒まれても触れは数え続けているので、次に触れたときまた試す
+    // 鳴り出すまで触れは拾い続けているので、次に触れたときまた試す
     void audio.play().catch(() => {});
-  }, [on, touches]);
+  }, []);
+
+  /** 写しがずれないようにする。倒した本人（toggle）でも書くが、道が増えても追随させる */
+  useEffect(() => {
+    onRef.current = on;
+  }, [on]);
+
+  useEffect(() => {
+    // 触れを拾うのは、鳴らそうとしていて、まだ鳴っていないあいだだけ。
+    // 止めている人の触れまで拾うと、いちばん軽くあるべき人の画面で
+    // 触れるたびに音の支度が動くことになる。
+    // 鳴り出したら外す（鳴っている最中に呼び直す用は無い）。
+    // start を呼ぶのはここと ♪ を押したときだけで、どちらも触れの中。だから開いた直後は必ず無音になる
+    if (sounding || !on) return;
+    const notice = (e: Event) => {
+      // 押しっぱなしのキーリピートでは呼び直さない。一度の触れで足りる
+      if (e instanceof KeyboardEvent && e.repeat) return;
+      start();
+    };
+    /*
+     * 掴み取りの側（capture）で拾う。本文の触れは選択中などで途中で止まることがあり、
+     * 昇ってくるのを待つと、その分だけ音が始まらない。
+     *
+     * 押した側（pointerdown）と離した側（pointerup）の両方を聞く。
+     * どの触れを「活性化」と認めるかは端末で違い（iOS の見立ては Chromium より厳しく、
+     * 離した側しか認めない見方が長く残っている）、片方だけに賭けると、
+     * 認めない端末では一度も鳴らない。二度呼ばれても、鳴っているものをもう一度鳴らすだけで害は無い
+     */
+    const opts = { capture: true } as const;
+    window.addEventListener('pointerdown', notice, opts);
+    window.addEventListener('pointerup', notice, opts);
+    window.addEventListener('keydown', notice, opts);
+    return () => {
+      window.removeEventListener('pointerdown', notice, opts);
+      window.removeEventListener('pointerup', notice, opts);
+      window.removeEventListener('keydown', notice, opts);
+    };
+  }, [on, sounding, start]);
+
+  /*
+   * 止める側は、押したその場ではなく移り変わりを見て動かす。
+   * 消えるのを待ってから止めるので時を計る必要があり、触れの中に居続けられないため。
+   * 触れの中でなければならないのは鳴らし始めだけで、止めるのはどこからでもできる。
+   */
+  useEffect(() => {
+    if (on) return;
+    const audio = ref.current;
+    const chain = chainRef.current;
+    // まだ組まれていないなら、そもそも鳴っていないので止める相手もいない
+    if (!audio || !chain) return;
+
+    // 消えてから止める。鳴らしたままにすると、止めたつもりの人の電池を使い続ける
+    ramp(chain.gain, 0, FADE_BACK_S);
+    const timer = setTimeout(() => {
+      stopTimerRef.current = null;
+      /*
+       * 傾きの終わりと、時を計る側のずれで、ごくわずかな音が残ることがある。
+       * 眠らせるとその高さで凍り、次に起こしたとき残りから始まるので、先に落とし切る。
+       */
+      const now = chain.ctx.currentTime;
+      chain.gain.gain.cancelScheduledValues(now);
+      chain.gain.gain.setValueAtTime(0, now);
+      audio.pause();
+      /*
+       * 通り道は畳まず、眠らせる。
+       * 畳む（close）と同じ audio 要素に源を作り直せず、二度と鳴らない画面になる。
+       * かといって起こしたままにすると、止めた人の端末が音の口を掴み続ける
+       * （iOS では、それだけで他のアプリの音を止めうる）。
+       *
+       * 眠らせるのは消え切ってから。眠っているあいだは時が進まないので、
+       * 消しかけで眠らせると、その高さのまま凍る。
+       */
+      void chain.ctx.suspend().catch(() => {});
+    }, FADE_BACK_S * 1000);
+    stopTimerRef.current = timer;
+    /*
+     * 消し切る前に鳴らす側へ戻されたら、止める段取りごと取り消す。
+     * 残しておくと、鳴り直した音が 0.6 秒後に黙って止まる。
+     * ふつうは鳴らし始め（start）が同期に取り消しているので、ここは後始末の念押し
+     */
+    return () => {
+      clearTimeout(timer);
+      if (stopTimerRef.current === timer) stopTimerRef.current = null;
+    };
+  }, [on]);
 
   /*
    * 立ち上げるのは、鳴らそうとした時ではなく、実際に鳴り出した時から。
@@ -249,13 +314,18 @@ export function useBgm(): Bgm {
   function toggle() {
     const next = !on;
     setOn(next);
+    // 写しも同時に倒す。この下の start は描き直しを待たずに走るので、写しが古いと組みそこねる
+    onRef.current = next;
     saveSoundOn(next);
     /*
-     * 押したこと自体が触れ。ここで数えないと、止めたまま開いた人が
-     * 鳴らす側へ倒したとき「まだ誰も触れていない」ままになって鳴り出さない
-     * （止めているあいだは触れを数えていないため）。
+     * 押したこと自体が触れ。ここで鳴らし始めないと、止めたまま開いた人が
+     * 鳴らす側へ倒したとき、次に画面のどこかを触れるまで鳴り出さない
+     * （止めているあいだは触れを拾っていないため）。
+     *
+     * そして、押されたその場で呼ぶことに意味がある。state が移り変わってから
+     * effect で呼ぶ形にすると、iOS では「触れの続き」と認められない（start の註を見よ）。
      */
-    setTouches((n) => n + 1);
+    if (next) start();
   }
 
   return { ref, on, preload: on ? 'auto' : 'none', toggle };
