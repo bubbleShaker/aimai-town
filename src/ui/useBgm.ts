@@ -42,24 +42,31 @@ const FADE_BACK_S = 0.6;
  * 組めなければ鳴らさない。HTML の audio へ戻す道は用意していない
  * （戻すと iOS だけ音量が効かない形が復活する。今どきのブラウザはどれも組める）。
  */
+interface Chain {
+  ctx: AudioContext;
+  gain: GainNode;
+}
+
 function connect(audio: HTMLAudioElement): Chain | null {
+  let ctx: AudioContext | null = null;
   try {
-    const ctx = new AudioContext();
+    ctx = new AudioContext();
     const gain = ctx.createGain();
     // 無音から始める。立ち上げるのは、鳴らすと決まってから
     gain.gain.value = 0;
     ctx.createMediaElementSource(audio).connect(gain).connect(ctx.destination);
     return { ctx, gain };
   } catch {
-    // 音を出せない環境はある。鳴らないだけで、遊びは止めない
-    // （保存が効かなくても歩みは続けられる、というのと同じ構え）
+    /*
+     * 音を出せない環境はある。鳴らないだけで、遊びは止めない
+     * （保存が効かなくても歩みは続けられる、というのと同じ構え）。
+     *
+     * 途中まで組めていたら閉じる。開いたままの口を残すと、鳴らないのに
+     * 音の口だけを掴み続けることになる（iOS では他のアプリの音を止めうる）。
+     */
+    void ctx?.close().catch(() => {});
     return null;
   }
-}
-
-interface Chain {
-  ctx: AudioContext;
-  gain: GainNode;
 }
 
 /**
@@ -91,7 +98,17 @@ export function useBgm(): Bgm {
   const ref = useRef<HTMLAudioElement>(null);
   /** 組んだ通り道。一度組んだら持ち続ける（同じ audio に源は一度しか作れない） */
   const chainRef = useRef<Chain | null>(null);
-  /** 一度でも鳴らしたか。二度目からの立ち上がりを短くするために覚える */
+  /**
+   * 組もうとしたか。組めなかったことと、まだ試していないことを見分けるために持つ。
+   * 見分けないと、組めない端末で触れるたびに組み直しにいくことになる。
+   */
+  const triedRef = useRef(false);
+  /**
+   * 一度でも鳴ったか。二度目からの立ち上がりを短くするために覚える。
+   * 立てるのは「鳴らそうとした時」ではなく「鳴り出した時」。
+   * 拒まれた一度で立ててしまうと、その人にとっての初めての一音が
+   * 押し戻しと同じ速さで立ち上がる（＝驚かせないための四秒が消える）。
+   */
   const soundedOnceRef = useRef(false);
   const [on, setOn] = useState(loadSoundOn);
   /**
@@ -125,7 +142,10 @@ export function useBgm(): Bgm {
   }, []);
 
   useEffect(() => {
-    if (sounding) return;
+    // 数えるのは、鳴らそうとしていて、まだ鳴っていないあいだだけ。
+    // 止めている人の触れまで数えると、いちばん軽くあるべき人の画面が
+    // 触れるたびに動くことになる
+    if (sounding || !on) return;
     const notice = () => setTouches((n) => n + 1);
     // 掴み取りの側（capture）で拾う。本文の触れは選択中などで途中で止まることがあり、
     // 昇ってくるのを待つと、その分だけ音が始まらない
@@ -136,7 +156,7 @@ export function useBgm(): Bgm {
       window.removeEventListener('pointerdown', notice, opts);
       window.removeEventListener('keydown', notice, opts);
     };
-  }, [sounding]);
+  }, [on, sounding]);
 
   useEffect(() => {
     const audio = ref.current;
@@ -154,32 +174,58 @@ export function useBgm(): Bgm {
       if (!chain) return;
       // 消えてから止める。鳴らしたままにすると、止めたつもりの人の電池を使い続ける
       ramp(chain.gain, 0, FADE_BACK_S);
-      const timer = setTimeout(() => audio.pause(), FADE_BACK_S * 1000);
+      const timer = setTimeout(() => {
+        /*
+         * 傾きの終わりと、時を計る側のずれで、ごくわずかな音が残ることがある。
+         * 眠らせるとその高さで凍り、次に起こしたとき残りから始まるので、先に落とし切る。
+         */
+        ramp(chain.gain, 0, 0);
+        audio.pause();
+        /*
+         * 通り道は畳まず、眠らせる。
+         * 畳む（close）と同じ audio 要素に源を作り直せず、二度と鳴らない画面になる。
+         * かといって起こしたままにすると、止めた人の端末が音の口を掴み続ける
+         * （iOS では、それだけで他のアプリの音を止めうる）。
+         *
+         * 眠らせるのは消え切ってから。眠っているあいだは時が進まないので、
+         * 消しかけで眠らせると、その高さのまま凍る。
+         */
+        void chain.ctx.suspend().catch(() => {});
+      }, FADE_BACK_S * 1000);
       return () => clearTimeout(timer);
     }
 
-    chainRef.current ??= connect(audio);
+    if (!triedRef.current) {
+      triedRef.current = true;
+      chainRef.current = connect(audio);
+    }
     const chain = chainRef.current;
+    // 組めなかった端末では鳴らさない。組み直しには行かない（行くたびに口が増える）
     if (!chain) return;
 
     /*
-     * 通り道は眠った状態で生まれることがある。触れた今なら起こせるので、鳴らす前に必ず起こす。
+     * 通り道は眠っていることがある（触れる前に生まれたときと、止めて眠らせたあと）。
+     * 触れた今なら起こせるので、鳴らす前に必ず起こす。
      * 起こし損ねると、audio は動いているのに音だけ出ない、いちばん分かりにくい形になる。
      */
     void chain.ctx.resume().catch(() => {});
     // 鳴らせないことはある（音源が無い、端末が拒む）。黙って諦める。
     // 拒まれても触れは数え続けているので、次に触れたときまた試す
     void audio.play().catch(() => {});
-    ramp(chain.gain, VOLUME, soundedOnceRef.current ? FADE_BACK_S : FADE_IN_S);
-    soundedOnceRef.current = true;
   }, [on, touches]);
 
   /*
-   * 通り道は畳まない（close しない）。
-   * 同じ audio 要素に源は一度しか作れないので、閉じて捨てると次に組み直せず、
-   * 二度と鳴らない画面になる。町は開いているあいだ一枚きりで、
-   * 閉じるときはページごと畳まれるため、持ち続けて困らない。
+   * 立ち上げるのは、鳴らそうとした時ではなく、実際に鳴り出した時から。
+   * 呼んだ時から傾きを引くと、音が届くのを待っているあいだに絞りだけが上がり、
+   * 遅い回線では「無音のまま四秒が過ぎ、全開で鳴り出す」ことになる。
+   * 拒まれた端末では、そもそも初めの一音が短い立ち上がりにすり替わる。
    */
+  useEffect(() => {
+    const chain = chainRef.current;
+    if (!on || !sounding || !chain) return;
+    ramp(chain.gain, VOLUME, soundedOnceRef.current ? FADE_BACK_S : FADE_IN_S);
+    soundedOnceRef.current = true;
+  }, [on, sounding]);
 
   /**
    * 押した時に書き戻す。移り変わりを見て書かないのは、
@@ -189,6 +235,12 @@ export function useBgm(): Bgm {
     const next = !on;
     setOn(next);
     saveSoundOn(next);
+    /*
+     * 押したこと自体が触れ。ここで数えないと、止めたまま開いた人が
+     * 鳴らす側へ倒したとき「まだ誰も触れていない」ままになって鳴り出さない
+     * （止めているあいだは触れを数えていないため）。
+     */
+    setTouches((n) => n + 1);
   }
 
   return { ref, on, preload: on ? 'auto' : 'none', toggle };

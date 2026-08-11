@@ -576,6 +576,22 @@ describe('世界の整合性', () => {
     expect(stranded, `どこからも歩いて行けない場所がある: ${stranded.join(', ')}`).toEqual([]);
   });
 
+  it('場所は、名前が折り返さず、止める口にも重ならない範囲に置かれている', () => {
+    /*
+     * 座標は表示のためのデータなので、置ける範囲がある。
+     * 左右の端に寄せすぎると絶対配置の幅が足りず名前が折り返し、
+     * 右上の隅は音を止める口（.sound）が占めていて、名札が届くと
+     * 灯を叩いたつもりで音が止まる。
+     * 場所を書き足す人がコメントを読まなくて済むよう、ここで縛る。
+     */
+    for (const place of world.places) {
+      expect(place.x, `${place.id} の x が左に寄りすぎている`).toBeGreaterThanOrEqual(11);
+      expect(place.x, `${place.id} の x が右に寄りすぎている`).toBeLessThanOrEqual(78);
+      expect(place.y, `${place.id} の y が上下にはみ出している`).toBeGreaterThanOrEqual(10);
+      expect(place.y, `${place.id} の y が上下にはみ出している`).toBeLessThanOrEqual(90);
+    }
+  });
+
   it('場所・断片・対話の id に重複が無い', () => {
     const ids = [
       ...world.places.map((p) => p.id),
