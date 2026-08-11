@@ -53,6 +53,12 @@ export function TraceView({ traces, closing, onRestart }: Props) {
             {line.text}
           </p>
         ))}
+        {/*
+          借りた音の出どころ。素材の規約で表示が要る。
+          町を歩いているあいだではなく、物語が閉じたここに置く。
+          世界の言葉ではないので scenario からは渡さず、締めの文とも見た目を分ける。
+        */}
+        <p className="trace-credit">BGM: MusMus</p>
       </div>
       <button className="button is-lit" onClick={onRestart}>
         もう一度、町へ降りる

@@ -163,13 +163,142 @@ async function run(browser) {
     if (!visible) throw new Error('読み返した後に進むと、増えた行が画面の外に置き去りになる');
   };
 
+  /**
+   * 音の様子。撮った絵に映らず、画面のどこにも出ていないので、ここでしか確かめられない。
+   *
+   * 動いているか（paused）だけでは足りない。音は通り道の途中で絞られていて、
+   * そこが 0 に貼り付いても audio は動いたままになる。
+   * それは「audio は動いているのに音だけ出ない」といういちばん分かりにくい形なので、
+   * 絞りの高さまで見る。高さは画面のどこにも出ないので、通り道を組むところを覗いて拾う。
+   */
+  const soundShape = () =>
+    page.evaluate(() => {
+      const audio = document.querySelector('audio');
+      const gains = window.__gains ?? [];
+      return {
+        placed: audio !== null,
+        playing: audio !== null && !audio.paused,
+        // 先に取りに行ってよいか。止めている人には取りに行かせない（1.4MB ある）
+        preload: audio?.preload,
+        // 音の口をいくつ開けたか。止めている人には一つも開けない
+        chains: gains.length,
+        // 通り道は一本だけだが、増えても「いちばん高いところ」を見れば鳴っているか分かる
+        level: gains.reduce((max, gain) => Math.max(max, gain.gain.value), 0),
+      };
+    });
+
+  /**
+   * 触れる前は鳴っていないことを見る。
+   * 開いた途端に鳴ると、一行目を読む前に驚かせる（ブラウザが止めてくれるとも限らない）。
+   * 音の口もまだ開けていない（開けるのは、鳴らすと決まってから）。
+   */
+  const assertSilentBeforeTouch = async () => {
+    const { placed, playing, chains } = await soundShape();
+    if (!placed) throw new Error('音そのものが置かれていない');
+    if (playing) throw new Error('まだ触れていないのに音が鳴っている');
+    if (chains > 0) throw new Error('まだ触れていないのに、音の口が開いている');
+  };
+
+  /**
+   * 初めの一音が、待つ間を置いて立ち上がることを見る。
+   * 一息で出てしまうと、町へ降りたところで、一行目を読む前に驚かせる。
+   *
+   * 触れたすぐあとに呼ぶこと。読み進めてから測ると、上がり切るまでの四秒のうち
+   * どれだけ過ぎたかが読み物の長さで変わり、閾値が言葉の増減で意味を変える。
+   */
+  const assertRisesSlowly = async () => {
+    const { level } = await soundShape();
+    // ひと触れぶん（1 秒に満たない）で上がるのは、四秒かけるならごく一部
+    if (level > 0.1) throw new Error(`初めの一音が、待つ間なく出ている（絞り ${level}）`);
+  };
+
+  /** 触れたあとは鳴っていることを見る（止めていないのに黙っていないか） */
+  const assertSounding = async () => {
+    const { playing, level } = await soundShape();
+    if (!playing) throw new Error('触れたのに音が鳴り出さない');
+    if (level <= 0) throw new Error('音は動いているのに、絞りが上がっていない');
+  };
+
+  /**
+   * 止めている人には、音を取りに行かせず、口も開けないことを見る。
+   * 素材は 1.4MB あり、鳴らさないと決めた人の通信を黙って使うことになる。
+   * 口を開けるだけでも、端末によっては他のアプリの音を止めてしまう。
+   *
+   * 開き直すところから確かめるので、通しプレイの終わりで呼ぶこと。
+   */
+  const assertNothingTakenWhenOff = async () => {
+    await page.evaluate(() =>
+      localStorage.setItem('aimai-town/sound', JSON.stringify({ version: 1, on: false })),
+    );
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(600);
+    // 触れても何も起こらないこと。読み進める人と同じだけ触れてみる
+    for (let i = 0; i < 3; i++) await tap('.panel');
+    await page.waitForTimeout(600);
+
+    const { playing, preload, chains } = await soundShape();
+    if (playing) throw new Error('止めているのに音が鳴っている');
+    if (preload !== 'none') throw new Error(`止めているのに音を取りに行っている（${preload}）`);
+    if (chains > 0) throw new Error('止めているのに、音の口が開いている');
+  };
+
+  /**
+   * 止める口を押すと音が止まり、そのとき物語は進んでいないことを見る。
+   * 音を止めようとした人が一行読み飛ばされるのは、
+   * 「読ませないまま先へ行かせない」を音の側から破ることになる。
+   *
+   * 読みかけの場面で呼ぶこと（進んでしまったかを、物語欄の姿で見るため）。
+   */
+  const assertToggleStopsSoundOnly = async () => {
+    const before = await readingShape();
+    await tap('.sound');
+    // 消えてから止まる。消え切るのを待たずに見ると、まだ動いている
+    await page.waitForTimeout(900);
+    const stopped = await soundShape();
+    if (stopped.playing) throw new Error('止める口を押しても音が止まらない');
+    if (stopped.level > 0) throw new Error('止めたのに、絞りが下りきっていない');
+
+    const after = await readingShape();
+    if (after.lines !== before.lines || (await page.locator('.story').count()) === 0) {
+      throw new Error('音を止めただけなのに、物語が進んだ');
+    }
+
+    // 押し戻すと、また鳴り出す。自分で押した人を待たせないので、こちらは一息で戻る
+    await tap('.sound');
+    await page.waitForTimeout(900);
+    const back = await soundShape();
+    if (!back.playing) throw new Error('止める口を押し戻しても鳴らない');
+    if (back.level <= 0) throw new Error('押し戻したのに、絞りが上がってこない');
+  };
+
+  /*
+   * 音の絞りを覗けるようにしておく。
+   * 町の側には何も足さない（確かめるためだけの窓を遊びの道に開けると、
+   * それがいつのまにか仕様として使われる）。ここで通り道を組むところを包んで、
+   * 作られた絞りを覚えておくだけにする。開く前に仕込まないと間に合わない。
+   */
+  await page.addInitScript(() => {
+    window.__gains = [];
+    const createGain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const gain = createGain.call(this);
+      window.__gains.push(gain);
+      return gain;
+    };
+  });
+
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
   await shot('01-arrival');
   await assertFogDrifts(page);
   await assertTypedForNewWords(); // 初めての言葉は、一行ずつ送られている途中のはず
+  await assertSilentBeforeTouch(); // まだ誰も触れていない
+
+  await tap('.story'); // 最初のひと触れ。ここで音が立ち上がりはじめる
+  await assertRisesSlowly();
 
   await read();
+  await assertSounding(); // 読み進めているあいだ、鳴り続けている
   await shot('02-actions');
 
   // 広場のふたりから断片を得る
@@ -177,6 +306,7 @@ async function run(browser) {
   await assertNotLeftBehind(); // 読みかけのうちに、読み返しても置き去りにされないことを見る
   await read(true);
   await shot('03-talk');
+  await assertToggleStopsSoundOnly(); // 読みかけのまま、音だけを止めて戻せる
   await read();
   await tap('.button >> nth=1');
   await read();
@@ -283,6 +413,9 @@ async function run(browser) {
   await tap('.button >> nth=0');
   await assertOpensAtTop();
   await shot('18-reread');
+
+  // 最後に、止めている人の側から開き直す。ここから先は撮らない
+  await assertNothingTakenWhenOff();
 }
 
 /**

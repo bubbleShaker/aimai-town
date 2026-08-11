@@ -28,6 +28,7 @@ import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
 import type { AfterReading, Scene, ShownLine } from './scene';
 import { beginReading, isFacing } from './scene';
+import { Sound } from './Sound';
 import { TraceView } from './TraceView';
 
 /** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
@@ -173,6 +174,9 @@ export function Game() {
   return (
     /* 戸に向き合っているあいだと終幕は、町を畳んで手もとだけを見せる */
     <div className={isFacing(scene) ? 'game is-facing' : 'game'}>
+      {/* 町の音。進行を渡さないので、ここから場面で曲を変えることはできない */}
+      <Sound />
+
       <MapView world={world} state={state} onMove={scene.kind === 'idle' ? move : null} />
 
       <div className="panel">
