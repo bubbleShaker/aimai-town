@@ -200,16 +200,23 @@ async function run(browser) {
   };
 
   /**
-   * 触れたあとは鳴っていることを見る（止めていないのに黙っていないか）。
-   * あわせて、初めの一音がゆっくり立ち上がっていることも見る。
-   * 一息で出てしまうと、町へ降りたところで読む前に驚かせる。
+   * 初めの一音が、待つ間を置いて立ち上がることを見る。
+   * 一息で出てしまうと、町へ降りたところで、一行目を読む前に驚かせる。
+   *
+   * 触れたすぐあとに呼ぶこと。読み進めてから測ると、上がり切るまでの四秒のうち
+   * どれだけ過ぎたかが読み物の長さで変わり、閾値が言葉の増減で意味を変える。
    */
+  const assertRisesSlowly = async () => {
+    const { level } = await soundShape();
+    // ひと触れぶん（1 秒に満たない）で上がるのは、四秒かけるならごく一部
+    if (level > 0.1) throw new Error(`初めの一音が、待つ間なく出ている（絞り ${level}）`);
+  };
+
+  /** 触れたあとは鳴っていることを見る（止めていないのに黙っていないか） */
   const assertSounding = async () => {
     const { playing, level } = await soundShape();
     if (!playing) throw new Error('触れたのに音が鳴り出さない');
     if (level <= 0) throw new Error('音は動いているのに、絞りが上がっていない');
-    // 四秒かけて上がる途中のはず。ここで上がり切っていたら、待つ間が消えている
-    if (level >= 0.26) throw new Error(`初めの一音が、待つ間なく出ている（絞り ${level}）`);
   };
 
   /**
@@ -287,8 +294,11 @@ async function run(browser) {
   await assertTypedForNewWords(); // 初めての言葉は、一行ずつ送られている途中のはず
   await assertSilentBeforeTouch(); // まだ誰も触れていない
 
+  await tap('.story'); // 最初のひと触れ。ここで音が立ち上がりはじめる
+  await assertRisesSlowly();
+
   await read();
-  await assertSounding(); // 読み進めるために触れたので、もう鳴っている
+  await assertSounding(); // 読み進めているあいだ、鳴り続けている
   await shot('02-actions');
 
   // 広場のふたりから断片を得る

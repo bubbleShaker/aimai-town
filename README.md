@@ -24,7 +24,15 @@ https://bubbleshaker.github.io/aimai-town/
 
 ## 素材
 
-音楽: [MusMus](https://musmus.main.jp/) — `old Gold`（watson）
+BGM: [MusMus](https://musmus.main.jp/) — `old Gold`（watson）
+
+[利用規約](https://musmus.main.jp/info.html)（2026-08-11 に確認）で押さえたこと。
+
+- 個人・法人、商用・非商用を問わず使える。事前の許可も報告も要らない
+- **著作権表示は必須。** 「MusMus の楽曲だと分かる表記」を出す。
+  この作品では終幕のあと、置いてきたものを振り返る画面の末尾に `BGM: MusMus` と置いている
+- ループやフェードなどの加工はしてよい（この作品では両方している）
+- **楽曲の二次配布は禁止。** 素材として再配布する形にしない
 
 ## 開発
 

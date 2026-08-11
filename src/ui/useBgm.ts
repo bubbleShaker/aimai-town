@@ -179,7 +179,9 @@ export function useBgm(): Bgm {
          * 傾きの終わりと、時を計る側のずれで、ごくわずかな音が残ることがある。
          * 眠らせるとその高さで凍り、次に起こしたとき残りから始まるので、先に落とし切る。
          */
-        ramp(chain.gain, 0, 0);
+        const now = chain.ctx.currentTime;
+        chain.gain.gain.cancelScheduledValues(now);
+        chain.gain.gain.setValueAtTime(0, now);
         audio.pause();
         /*
          * 通り道は畳まず、眠らせる。
@@ -221,8 +223,21 @@ export function useBgm(): Bgm {
    * 拒まれた端末では、そもそも初めの一音が短い立ち上がりにすり替わる。
    */
   useEffect(() => {
+    const audio = ref.current;
+    if (!audio || !sounding) return;
+
+    if (!on) {
+      /*
+       * こちらが鳴らそうとしていないのに動き出したときは、止める。
+       * 端末の側（通知に残った再生ボタンなど）から動かされることがあり、
+       * そのままだと眠らせた通り道へ無音のまま流れ続けて、止めた人の電池だけが減る。
+       */
+      audio.pause();
+      return;
+    }
+
     const chain = chainRef.current;
-    if (!on || !sounding || !chain) return;
+    if (!chain) return;
     ramp(chain.gain, VOLUME, soundedOnceRef.current ? FADE_BACK_S : FADE_IN_S);
     soundedOnceRef.current = true;
   }, [on, sounding]);

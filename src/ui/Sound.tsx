@@ -30,6 +30,7 @@ export function Sound() {
         鳴り出した音を止めたい人が、止められる場面を探して歩き回ることになる。
       */}
       <button
+        type="button"
         className={on ? 'sound is-on' : 'sound'}
         onClick={(e) => {
           /*
