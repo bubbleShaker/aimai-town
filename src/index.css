@@ -118,7 +118,13 @@ body {
 /*
  * 止める口。町の隅にいつも浮かせておく。
  * 畳まれる町（.map）の中に入れると、戸の前と終幕で消えて止められなくなる。
- * 灯そのものではないので、光らせ方は控えめにする。
+ *
+ * ここは町の灯（.place）と同じ面の上にあり、重なるとこちらが勝つ。
+ * 灯を叩いたつもりで音が止まらないよう、右上に置く場所の x は
+ * scenario/places.ts の側で空けてある（灯台のコメント）。
+ *
+ * 灯そのものではないので、光らせ方は控えめにする。にじませると、
+ * 霧の中の灯と見分けがつかなくなって「まだ行けない場所」に見える。
  */
 .sound {
   position: absolute;
@@ -140,14 +146,12 @@ body {
   cursor: pointer;
   transition:
     color 0.5s ease,
-    border-color 0.5s ease,
-    box-shadow 0.5s ease;
+    border-color 0.5s ease;
 }
 
 .sound.is-on {
   color: var(--lamp);
   border-color: var(--lamp-dim);
-  box-shadow: 0 0 10px rgba(232, 185, 106, 0.15);
 }
 
 /*

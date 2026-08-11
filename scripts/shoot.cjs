@@ -164,13 +164,23 @@ async function run(browser) {
   };
 
   /**
-   * 音の様子。鳴っているかは、音そのものが動いているかで見る。
-   * 撮った絵にはもちろん映らず、画面のどこにも出ていないので、ここでしか確かめられない。
+   * 音の様子。撮った絵に映らず、画面のどこにも出ていないので、ここでしか確かめられない。
+   *
+   * 動いているか（paused）だけでは足りない。音は通り道の途中で絞られていて、
+   * そこが 0 に貼り付いても audio は動いたままになる。
+   * それは「audio は動いているのに音だけ出ない」といういちばん分かりにくい形なので、
+   * 絞りの高さまで見る。高さは画面のどこにも出ないので、通り道を組むところを覗いて拾う。
    */
   const soundShape = () =>
     page.evaluate(() => {
       const audio = document.querySelector('audio');
-      return { placed: audio !== null, playing: audio !== null && !audio.paused };
+      const gains = window.__gains ?? [];
+      return {
+        placed: audio !== null,
+        playing: audio !== null && !audio.paused,
+        // 通り道は一本だけだが、増えても「いちばん高いところ」を見れば鳴っているか分かる
+        level: gains.reduce((max, gain) => Math.max(max, gain.gain.value), 0),
+      };
     });
 
   /**
@@ -185,7 +195,10 @@ async function run(browser) {
 
   /** 触れたあとは鳴っていることを見る（止めていないのに黙っていないか） */
   const assertSounding = async () => {
-    if (!(await soundShape()).playing) throw new Error('触れたのに音が鳴り出さない');
+    const { playing, level } = await soundShape();
+    if (!playing) throw new Error('触れたのに音が鳴り出さない');
+    // 立ち上がり切るのは四秒後だが、ここでは上がりはじめていれば足りる
+    if (level <= 0) throw new Error('音は動いているのに、絞りが上がっていない');
   };
 
   /**
@@ -200,15 +213,38 @@ async function run(browser) {
     await tap('.sound');
     // 消えてから止まる。消え切るのを待たずに見ると、まだ動いている
     await page.waitForTimeout(900);
-    if ((await soundShape()).playing) throw new Error('止める口を押しても音が止まらない');
+    const stopped = await soundShape();
+    if (stopped.playing) throw new Error('止める口を押しても音が止まらない');
+    if (stopped.level > 0) throw new Error('止めたのに、絞りが下りきっていない');
+
     const after = await readingShape();
     if (after.lines !== before.lines || (await page.locator('.story').count()) === 0) {
       throw new Error('音を止めただけなのに、物語が進んだ');
     }
+
+    // 押し戻すと、また鳴り出す。自分で押した人を待たせないので、こちらは一息で戻る
     await tap('.sound');
-    await page.waitForTimeout(300);
-    if (!(await soundShape()).playing) throw new Error('止める口を押し戻しても鳴らない');
+    await page.waitForTimeout(900);
+    const back = await soundShape();
+    if (!back.playing) throw new Error('止める口を押し戻しても鳴らない');
+    if (back.level <= 0) throw new Error('押し戻したのに、絞りが上がってこない');
   };
+
+  /*
+   * 音の絞りを覗けるようにしておく。
+   * 町の側には何も足さない（確かめるためだけの窓を遊びの道に開けると、
+   * それがいつのまにか仕様として使われる）。ここで通り道を組むところを包んで、
+   * 作られた絞りを覚えておくだけにする。開く前に仕込まないと間に合わない。
+   */
+  await page.addInitScript(() => {
+    window.__gains = [];
+    const createGain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const gain = createGain.call(this);
+      window.__gains.push(gain);
+      return gain;
+    };
+  });
 
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
