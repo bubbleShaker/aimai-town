@@ -163,13 +163,62 @@ async function run(browser) {
     if (!visible) throw new Error('読み返した後に進むと、増えた行が画面の外に置き去りになる');
   };
 
+  /**
+   * 音の様子。鳴っているかは、音そのものが動いているかで見る。
+   * 撮った絵にはもちろん映らず、画面のどこにも出ていないので、ここでしか確かめられない。
+   */
+  const soundShape = () =>
+    page.evaluate(() => {
+      const audio = document.querySelector('audio');
+      return { placed: audio !== null, playing: audio !== null && !audio.paused };
+    });
+
+  /**
+   * 触れる前は鳴っていないことを見る。
+   * 開いた途端に鳴ると、一行目を読む前に驚かせる（ブラウザが止めてくれるとも限らない）。
+   */
+  const assertSilentBeforeTouch = async () => {
+    const { placed, playing } = await soundShape();
+    if (!placed) throw new Error('音そのものが置かれていない');
+    if (playing) throw new Error('まだ触れていないのに音が鳴っている');
+  };
+
+  /** 触れたあとは鳴っていることを見る（止めていないのに黙っていないか） */
+  const assertSounding = async () => {
+    if (!(await soundShape()).playing) throw new Error('触れたのに音が鳴り出さない');
+  };
+
+  /**
+   * 止める口を押すと音が止まり、そのとき物語は進んでいないことを見る。
+   * 音を止めようとした人が一行読み飛ばされるのは、
+   * 「読ませないまま先へ行かせない」を音の側から破ることになる。
+   *
+   * 読みかけの場面で呼ぶこと（進んでしまったかを、物語欄の姿で見るため）。
+   */
+  const assertToggleStopsSoundOnly = async () => {
+    const before = await readingShape();
+    await tap('.sound');
+    // 消えてから止まる。消え切るのを待たずに見ると、まだ動いている
+    await page.waitForTimeout(900);
+    if ((await soundShape()).playing) throw new Error('止める口を押しても音が止まらない');
+    const after = await readingShape();
+    if (after.lines !== before.lines || (await page.locator('.story').count()) === 0) {
+      throw new Error('音を止めただけなのに、物語が進んだ');
+    }
+    await tap('.sound');
+    await page.waitForTimeout(300);
+    if (!(await soundShape()).playing) throw new Error('止める口を押し戻しても鳴らない');
+  };
+
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(1000);
   await shot('01-arrival');
   await assertFogDrifts(page);
   await assertTypedForNewWords(); // 初めての言葉は、一行ずつ送られている途中のはず
+  await assertSilentBeforeTouch(); // まだ誰も触れていない
 
   await read();
+  await assertSounding(); // 読み進めるために触れたので、もう鳴っている
   await shot('02-actions');
 
   // 広場のふたりから断片を得る
@@ -177,6 +226,7 @@ async function run(browser) {
   await assertNotLeftBehind(); // 読みかけのうちに、読み返しても置き去りにされないことを見る
   await read(true);
   await shot('03-talk');
+  await assertToggleStopsSoundOnly(); // 読みかけのまま、音だけを止めて戻せる
   await read();
   await tap('.button >> nth=1');
   await read();
