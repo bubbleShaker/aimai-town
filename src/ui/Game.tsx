@@ -28,7 +28,9 @@ import { NoteView } from './NoteView';
 import { StoryView } from './StoryView';
 import type { AfterReading, Scene, ShownLine } from './scene';
 import { beginReading, isFacing } from './scene';
+import { SoundToggle } from './SoundToggle';
 import { TraceView } from './TraceView';
+import { BGM_SOURCE, useBgm } from './useBgm';
 
 /** 町へ降りたところ。始めるときと、始め直すときの両方から使う */
 function opening(lore: Lore): Scene {
@@ -59,6 +61,11 @@ export function Game() {
   const [state, setState] = useState<GameState>(begun.state);
   const [scene, setScene] = useState<Scene>(begun.scene);
   const [lore, setLore] = useState<Lore>(begun.lore);
+  /*
+   * 町に流す音。進行を渡さないのは、音が世界の状態を映さないと決めたから。
+   * ここで state や scene を渡せるようにすると、場面で曲を変える道ができる。
+   */
+  const bgm = useBgm();
 
   /*
    * 進行が変わるたび書き戻す。書けない環境でも遊びは止まらない（store が飲み込む）。
@@ -173,6 +180,14 @@ export function Game() {
   return (
     /* 戸に向き合っているあいだと終幕は、町を畳んで手もとだけを見せる */
     <div className={isFacing(scene) ? 'game is-facing' : 'game'}>
+      {/*
+        音そのもの。姿は持たない（CSS で隠してある）が、隠れていても鳴る。
+        loop を付けるのは、一曲を切れ目なく流し続けるため。
+        繰り返しの数を数えていないので、どれだけ町にいたかは音からは分からない。
+      */}
+      <audio ref={bgm.ref} className="bgm" src={BGM_SOURCE} loop preload="auto" />
+      <SoundToggle on={bgm.on} onToggle={bgm.toggle} />
+
       <MapView world={world} state={state} onMove={scene.kind === 'idle' ? move : null} />
 
       <div className="panel">

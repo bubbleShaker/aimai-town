@@ -32,6 +32,7 @@
 .story,
 .story-next,
 .button,
+.sound,
 .place {
   touch-action: manipulation;
   user-select: none;
@@ -78,6 +79,8 @@ body {
 }
 
 .game {
+  /* 止める口を町の隅に浮かせるための起点。浮かせないと grid の行を食う */
+  position: relative;
   height: 100%;
   display: grid;
   grid-template-rows: 38% 1fr;
@@ -99,6 +102,70 @@ body {
 .game.is-facing .map {
   opacity: 0;
   transition: opacity 0.3s ease;
+}
+
+/* ── 音 ───────────────────────────── */
+
+/*
+ * 音そのものは姿を持たない。
+ * 隠しても鳴る（display: none の audio も再生される）ので、
+ * grid の行を一つ食って町の高さが狂うのを避けるほうを採る。
+ */
+.bgm {
+  display: none;
+}
+
+/*
+ * 止める口。町の隅にいつも浮かせておく。
+ * 畳まれる町（.map）の中に入れると、戸の前と終幕で消えて止められなくなる。
+ * 灯そのものではないので、光らせ方は控えめにする。
+ */
+.sound {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: 12px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: rgba(13, 17, 22, 0.5);
+  border: 1px solid #2f3742;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    color 0.5s ease,
+    border-color 0.5s ease,
+    box-shadow 0.5s ease;
+}
+
+.sound.is-on {
+  color: var(--lamp);
+  border-color: var(--lamp-dim);
+  box-shadow: 0 0 10px rgba(232, 185, 106, 0.15);
+}
+
+/*
+ * 止まっているあいだ、灯を横切る一本を引く。
+ * 色の違いだけで示すと、霧に沈んだ画面では点いているのか分からない。
+ */
+.sound::after {
+  content: '';
+  position: absolute;
+  width: 19px;
+  height: 1px;
+  background: currentcolor;
+  transform: rotate(-45deg);
+  transition: opacity 0.4s ease;
+}
+
+.sound.is-on::after {
+  opacity: 0;
 }
 
 /* ── マップ ───────────────────────────── */
