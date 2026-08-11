@@ -243,6 +243,24 @@ async function run(browser) {
   };
 
   /**
+   * 止めたまま開いた人が、♪ を押しただけで鳴り出すことを見る。
+   * ほかはどこも触らない。押した一度が「鳴らし始め」まで届いているかを、ここだけで確かめられる。
+   *
+   * 鳴らし始めを触れの中から state 経由の後追いに戻すと、iOS では音が出なくなるが、
+   * その壊れ方はここでは映らない（Chromium は一度触れた頁に緩い）。
+   * それでも「押しても何も呼ばれない」形なら落ちるので、道が消えたことは分かる。
+   *
+   * 止めた状態で開き直したところ（assertNothingTakenWhenOff の直後）で呼ぶこと。
+   */
+  const assertToggleAloneStarts = async () => {
+    await tap('.sound');
+    await page.waitForTimeout(900);
+    const { playing, chains } = await soundShape();
+    if (chains === 0) throw new Error('♪ を押しても、音の口が開かない');
+    if (!playing) throw new Error('♪ を押しただけでは鳴り出さない');
+  };
+
+  /**
    * 止める口を押すと音が止まり、そのとき物語は進んでいないことを見る。
    * 音を止めようとした人が一行読み飛ばされるのは、
    * 「読ませないまま先へ行かせない」を音の側から破ることになる。
@@ -416,6 +434,8 @@ async function run(browser) {
 
   // 最後に、止めている人の側から開き直す。ここから先は撮らない
   await assertNothingTakenWhenOff();
+  // そのまま、♪ を押しただけで鳴り出すところまで見る
+  await assertToggleAloneStarts();
 }
 
 /**
