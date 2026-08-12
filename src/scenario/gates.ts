@@ -102,6 +102,25 @@ export const gates: Gate[] = [
         ],
         shift: { distance: -1, certainty: 1 },
       },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'ここから出ていく話か' },
+          { text: '機の音は、ひとつも途切れていない。' },
+          { speaker: '戸', text: '手を止めた者から、先に出ていく' },
+          { speaker: '戸', text: '……止めていないのなら、通れ' },
+          { text: '戸が開いた。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: 'その手つきは、誰に教わった' },
+          { text: 'あなたは、親方の指の運びを思い出す。' },
+          { speaker: '戸', text: '借りた手つきで、自分の布を織るわけだ' },
+          { text: '戸は開いた。機の音は変わらない。' },
+        ],
+        shift: { distance: 1, certainty: 1 },
+      },
     },
     fallback: {
       lines: [
@@ -209,6 +228,25 @@ export const gates: Gate[] = [
         ],
         shift: { distance: -1, certainty: 0 },
       },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'それは、いまのおまえのことだな' },
+          { text: '背中で、笑い声がひとつ上がった。' },
+          { speaker: '戸', text: '出ていく者は、たいてい戻ってくる' },
+          { speaker: '戸', text: '……火の消える分だけ、外にいる' },
+          { text: '戸は、建て付けの悪い音を立てて開いた。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: 'この店の火は、卓の真ん中にある' },
+          { text: '混ざった灯のどれが誰のものか、分からない。' },
+          { speaker: '戸', text: '借りたものと、寄せたものは違うのか' },
+          { text: '答えの出ないうちに、戸は開いた。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
     },
     fallback: {
       lines: [
@@ -312,6 +350,24 @@ export const gates: Gate[] = [
           { text: '戸が開いた。風だけが、確かに鳴っている。' },
         ],
         shift: { distance: -2, certainty: -1 },
+      },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'この先は、離れる一方だぞ' },
+          { text: '橋の向こうからは、風の音しかしない。' },
+          { speaker: '戸', text: '……守も、そう言って此処へ来た' },
+          { text: '戸は開いた。火は、まだ高いところにある。' },
+        ],
+        shift: { distance: -2, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: '守の火は、誰にも借りておらんそうだ' },
+          { text: '灯台の火は、町のどの灯より大きい。' },
+          { speaker: '戸', text: 'では、初めの一度は誰が点けた' },
+          { text: '答えは上にある。戸は、それより先に開いた。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
       },
     },
     fallback: {
