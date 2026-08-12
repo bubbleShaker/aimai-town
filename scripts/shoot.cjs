@@ -340,6 +340,19 @@ async function run(browser) {
   await walk('square');
   await read();
 
+  // 広場の反対の隅、水汲み場。並ぶ・水番に訊く・汲む人に聞く、で三人ぶん
+  await walk('mizukumi');
+  await read();
+  await tap('.button >> nth=0');
+  await read();
+  await tap('.button >> nth=1');
+  await read();
+  await tap('.button >> nth=2');
+  await read();
+  await shot('03c-mizukumi');
+  await walk('square');
+  await read();
+
   // 井戸・織り小屋・酒場・橋をひと回りして、手持ちを増やす
   for (const place of ['well', 'loom', 'tavern', 'bridge']) {
     await walk(place);

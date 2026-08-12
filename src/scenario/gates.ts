@@ -121,6 +121,36 @@ export const gates: Gate[] = [
         ],
         shift: { distance: 1, certainty: 1 },
       },
+      'f-interrupt': {
+        lines: [
+          { speaker: '戸', text: 'ここでは、誰も話しかけてこなかったろう' },
+          { text: '機の音は、ひとつも途切れていない。' },
+          { speaker: '戸', text: '手が動いているあいだ、声はかけぬのが作法だ' },
+          { speaker: '戸', text: '……そのぶん、ここでは何も始まらん' },
+          { text: '戸が開いた。誰も、こちらへ声をかけない。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
+      'f-drawn-out': {
+        lines: [
+          { speaker: '戸', text: '親方に、何か訊いたか' },
+          { text: 'あなたは思い出す。譲ったのか、と訊いた。' },
+          { speaker: '戸', text: '手を見ていれば、訊きたいことは湧く' },
+          { text: '戸が開いた。手は、まだ動いている。' },
+        ],
+        shift: { distance: 1, certainty: 0 },
+      },
+      'f-chosen-place': {
+        lines: [
+          { speaker: '戸', text: 'では、ここは選んで来たのか' },
+          { text: 'あなたは答えない。用があって入ったわけではない。' },
+          { speaker: '戸', text: 'ここで生まれるのは、話ではなく布だ' },
+          { speaker: '戸', text: '……それでも、隣とは合っている' },
+          { text: '戸が開いた。奥からは、布の匂いだけがした。' },
+        ],
+        /* 締めの一言が関わりの側を向いているので、選んで立つ側へは寄せない */
+        shift: { distance: 0, certainty: 1 },
+      },
     },
     fallback: {
       lines: [
@@ -247,6 +277,36 @@ export const gates: Gate[] = [
         ],
         shift: { distance: 1, certainty: -1 },
       },
+      'f-interrupt': {
+        lines: [
+          { speaker: '戸', text: 'この店で、途切れた考えがあったか' },
+          { text: '声の塊は、誰の話も最後まで聞いていない。' },
+          { speaker: '戸', text: 'ここでは、考えごとは持ち込むだけ損だ' },
+          { speaker: '戸', text: '……途切れて困るものは、外へ持って出ろ' },
+          { text: '戸は、框の紙を鳴らして開いた。' },
+        ],
+        shift: { distance: -1, certainty: -1 },
+      },
+      'f-drawn-out': {
+        lines: [
+          { speaker: '戸', text: 'ここで、問いを捻り出した者はおらん' },
+          { text: '卓では、答えのいらない話ばかりが続いている。' },
+          { speaker: '戸', text: '捻り出すのは、相手が遠いからだ' },
+          { speaker: '戸', text: '……近ければ、そもそも問わずに済む' },
+          { text: '戸が開いた。問いのほうは、こちらに残った。' },
+        ],
+        shift: { distance: 1, certainty: 0 },
+      },
+      'f-chosen-place': {
+        lines: [
+          { speaker: '戸', text: 'では、この店は選んで入ったな' },
+          { text: 'あなたは、戸を押したときのことを思い出す。' },
+          { speaker: '戸', text: 'ここは、選んで入った者ばかりだ' },
+          { speaker: '戸', text: 'それでも、始まる話は選べんぞ' },
+          { text: '戸が開き、声の塊が背中で小さくなった。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
     },
     fallback: {
       lines: [
@@ -369,6 +429,35 @@ export const gates: Gate[] = [
           { text: '戸が開き、風がまっすぐ吹き込んだ。' },
         ],
         shift: { distance: 1, certainty: -1 },
+      },
+      'f-interrupt': {
+        lines: [
+          { speaker: '戸', text: 'この先には、途切れさせる者もおらん' },
+          { text: '風の音のほかに、聞こえるものは何も無い。' },
+          { speaker: '戸', text: '守の考えは、何年も途切れていないわけだ' },
+          { speaker: '戸', text: '……それを、静かと呼ぶかどうかだな' },
+          { text: '戸は開いた。風の音は、途切れない。' },
+        ],
+        shift: { distance: -1, certainty: -1 },
+      },
+      'f-drawn-out': {
+        lines: [
+          { speaker: '戸', text: '守に、何を訊くつもりだ' },
+          { text: '橋を渡り切っても、まだ何も浮かんでいない。' },
+          { speaker: '戸', text: '足りている者への問いは、たいてい捻り出しになる' },
+          { speaker: '戸', text: '……それでも、守は長く答えるぞ' },
+          { text: '戸が開いた。上の火は、まだ大きい。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
+      'f-chosen-place': {
+        lines: [
+          { speaker: '戸', text: 'この先は、話の生まれる場所ではないぞ' },
+          { text: 'あなたは、それを知って橋を渡ってきた。' },
+          { speaker: '戸', text: '守は、そう来た者にだけよく話す' },
+          { text: '戸が開いた。上からは、まだ何も聞こえない。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
       },
     },
     fallback: {
