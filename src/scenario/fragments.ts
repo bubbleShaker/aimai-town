@@ -57,6 +57,21 @@ export const fragments: Fragment[] = [
     source: '喫煙所で借りた火',
   },
   {
+    id: 'f-interrupt',
+    text: '声をかけた分だけ、誰かの考えが途切れる',
+    source: '水汲み場の列',
+  },
+  {
+    id: 'f-drawn-out',
+    text: '捻り出した問いは、捻り出したまま届く',
+    source: '水番の前で捻り出した問い',
+  },
+  {
+    id: 'f-chosen-place',
+    text: '話が生まれる場所にだけ、立つことにしている',
+    source: '水汲み場で並んだ人',
+  },
+  {
     id: 'f-cannot-alone',
     text: '渡る先がないなら、それは橋ではない',
     source: '橋を渡る人',
