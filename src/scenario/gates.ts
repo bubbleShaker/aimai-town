@@ -105,10 +105,10 @@ export const gates: Gate[] = [
       'f-step-out': {
         lines: [
           { speaker: '戸', text: 'ここから出ていく話か' },
-          { text: '機の音は、ひとつも途切れていない。' },
+          { text: '機の音は、あなたの返事を待っていない。' },
           { speaker: '戸', text: '手を止めた者から、先に出ていく' },
-          { speaker: '戸', text: '……止めていないのなら、通れ' },
-          { text: '戸が開いた。' },
+          { speaker: '戸', text: '……出ていった者も、朝には戻る' },
+          { text: '機の音のあいだに、戸が開いた。' },
         ],
         shift: { distance: -1, certainty: 0 },
       },
@@ -231,19 +231,19 @@ export const gates: Gate[] = [
       'f-step-out': {
         lines: [
           { speaker: '戸', text: 'それは、いまのおまえのことだな' },
-          { text: '背中で、笑い声がひとつ上がった。' },
+          { text: '声の塊が、いちど大きくなった。' },
           { speaker: '戸', text: '出ていく者は、たいてい戻ってくる' },
           { speaker: '戸', text: '……火の消える分だけ、外にいる' },
-          { text: '戸は、建て付けの悪い音を立てて開いた。' },
+          { text: '戸は、押した分だけきしんで開いた。' },
         ],
         shift: { distance: -1, certainty: 0 },
       },
       'f-borrowed-fire': {
         lines: [
-          { speaker: '戸', text: 'この店の火は、卓の真ん中にある' },
-          { text: '混ざった灯のどれが誰のものか、分からない。' },
-          { speaker: '戸', text: '借りたものと、寄せたものは違うのか' },
-          { text: '答えの出ないうちに、戸は開いた。' },
+          { speaker: '戸', text: 'ここでは、火を借りる必要もない' },
+          { text: '卓の上では、灯がひとつに寄せられている。' },
+          { speaker: '戸', text: '借りるのと、寄せるのは同じか' },
+          { text: '戸が開くと、寄せた灯が少しだけ揺れた。' },
         ],
         shift: { distance: 1, certainty: -1 },
       },
@@ -355,17 +355,18 @@ export const gates: Gate[] = [
         lines: [
           { speaker: '戸', text: 'この先は、離れる一方だぞ' },
           { text: '橋の向こうからは、風の音しかしない。' },
-          { speaker: '戸', text: '……守も、そう言って此処へ来た' },
+          { speaker: '戸', text: '……守も、そう言ってここへ来た' },
           { text: '戸は開いた。火は、まだ高いところにある。' },
         ],
         shift: { distance: -2, certainty: 0 },
       },
       'f-borrowed-fire': {
         lines: [
-          { speaker: '戸', text: '守の火は、誰にも借りておらんそうだ' },
-          { text: '灯台の火は、町のどの灯より大きい。' },
-          { speaker: '戸', text: 'では、初めの一度は誰が点けた' },
-          { text: '答えは上にある。戸は、それより先に開いた。' },
+          { speaker: '戸', text: 'その火は、どこで点けた' },
+          { text: 'あなたは、屋根の下の煙を思い出す。' },
+          { speaker: '戸', text: '借りた火で、ここまで歩いてきたわけだ' },
+          { speaker: '戸', text: '……この先は、風が強いぞ' },
+          { text: '戸が開き、風がまっすぐ吹き込んだ。' },
         ],
         shift: { distance: 1, certainty: -1 },
       },

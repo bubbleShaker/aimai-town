@@ -682,7 +682,7 @@ function playThrough(
   talk('t-child');
   talk('t-nameless');
 
-  // 広場の隅の喫煙所。ここだけは二度話す（人にひとつ、火にひとつ）
+  // 広場の隅の喫煙所。町でここだけ、同じ相手と二度話す（人にひとつ、火にひとつ）
   go('smoking');
   talk('t-smoker');
   talk('t-fire');

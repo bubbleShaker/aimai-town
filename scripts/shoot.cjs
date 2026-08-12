@@ -329,7 +329,7 @@ async function run(browser) {
   await tap('.button >> nth=1');
   await read();
 
-  // 広場の隅の喫煙所。町でここだけ、ひとつの場所で二度話せる
+  // 広場の隅の喫煙所。町でここだけ、同じ相手と二度話せる
   await walk('smoking');
   await read();
   await tap('.button >> nth=0');
