@@ -102,6 +102,25 @@ export const gates: Gate[] = [
         ],
         shift: { distance: -1, certainty: 1 },
       },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'ここから出ていく話か' },
+          { text: '機の音は、あなたの返事を待っていない。' },
+          { speaker: '戸', text: '手を止めた者から、先に出ていく' },
+          { speaker: '戸', text: '……出ていった者も、朝には戻る' },
+          { text: '機の音のあいだに、戸が開いた。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: 'その手つきは、誰に教わった' },
+          { text: 'あなたは、親方の指の運びを思い出す。' },
+          { speaker: '戸', text: '借りた手つきで、自分の布を織るわけだ' },
+          { text: '戸は開いた。機の音は変わらない。' },
+        ],
+        shift: { distance: 1, certainty: 1 },
+      },
     },
     fallback: {
       lines: [
@@ -209,6 +228,25 @@ export const gates: Gate[] = [
         ],
         shift: { distance: -1, certainty: 0 },
       },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'それは、いまのおまえのことだな' },
+          { text: '声の塊が、いちど大きくなった。' },
+          { speaker: '戸', text: '出ていく者は、たいてい戻ってくる' },
+          { speaker: '戸', text: '……火の消える分だけ、外にいる' },
+          { text: '戸は、押した分だけきしんで開いた。' },
+        ],
+        shift: { distance: -1, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: 'ここでは、火を借りる必要もない' },
+          { text: '卓の上では、灯がひとつに寄せられている。' },
+          { speaker: '戸', text: '借りるのと、寄せるのは同じか' },
+          { text: '戸が開くと、寄せた灯が少しだけ揺れた。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
+      },
     },
     fallback: {
       lines: [
@@ -312,6 +350,25 @@ export const gates: Gate[] = [
           { text: '戸が開いた。風だけが、確かに鳴っている。' },
         ],
         shift: { distance: -2, certainty: -1 },
+      },
+      'f-step-out': {
+        lines: [
+          { speaker: '戸', text: 'この先は、離れる一方だぞ' },
+          { text: '橋の向こうからは、風の音しかしない。' },
+          { speaker: '戸', text: '……守も、そう言ってここへ来た' },
+          { text: '戸は開いた。火は、まだ高いところにある。' },
+        ],
+        shift: { distance: -2, certainty: 0 },
+      },
+      'f-borrowed-fire': {
+        lines: [
+          { speaker: '戸', text: 'その火は、どこで点けた' },
+          { text: 'あなたは、屋根の下の煙を思い出す。' },
+          { speaker: '戸', text: '借りた火で、ここまで歩いてきたわけだ' },
+          { speaker: '戸', text: '……この先は、風が強いぞ' },
+          { text: '戸が開き、風がまっすぐ吹き込んだ。' },
+        ],
+        shift: { distance: 1, certainty: -1 },
       },
     },
     fallback: {

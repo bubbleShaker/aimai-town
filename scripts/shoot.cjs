@@ -329,7 +329,18 @@ async function run(browser) {
   await tap('.button >> nth=1');
   await read();
 
-  // 井戸・織り小屋・酒場・橋をひと回りして、手持ちを六枚まで増やす
+  // 広場の隅の喫煙所。町でここだけ、同じ相手と二度話せる
+  await walk('smoking');
+  await read();
+  await tap('.button >> nth=0');
+  await read();
+  await tap('.button >> nth=1');
+  await read();
+  await shot('03b-smoking');
+  await walk('square');
+  await read();
+
+  // 井戸・織り小屋・酒場・橋をひと回りして、手持ちを増やす
   for (const place of ['well', 'loom', 'tavern', 'bridge']) {
     await walk(place);
     await read();

@@ -284,9 +284,9 @@ describe('終幕', () => {
       for (const choice of state.gateChoices) tried.get(choice.gateId)!.add(choice.fragmentId);
     }
     const sizes = world.gates.map((g) => `${g.id}: ${tried.get(g.id)!.size}`);
-    // playThrough の順路では、扉の前までに 機屋 4 枚・酒場 6 枚・灯台 9 枚 を拾っている。
+    // playThrough の順路では、扉の前までに 機屋 6 枚・酒場 8 枚・灯台 11 枚 を拾っている。
     // 順路を継ぎ足したらこの数も変わる。変えずに減っていたら、道が痩せている
-    expect(count, `扉ごとに置けた一枚 ${sizes.join(' / ')}`).toBe(4 * 6 * 9);
+    expect(count, `扉ごとに置けた一枚 ${sizes.join(' / ')}`).toBe(6 * 8 * 11);
   });
 
   /**
@@ -681,6 +681,12 @@ function playThrough(
 
   talk('t-child');
   talk('t-nameless');
+
+  // 広場の隅の喫煙所。町でここだけ、同じ相手と二度話す（人にひとつ、火にひとつ）
+  go('smoking');
+  talk('t-smoker');
+  talk('t-fire');
+  go('square');
 
   go('loom');
   talk('t-master');

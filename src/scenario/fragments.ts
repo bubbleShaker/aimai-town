@@ -47,6 +47,16 @@ export const fragments: Fragment[] = [
     source: '酒場の裏の壁越し',
   },
   {
+    id: 'f-step-out',
+    text: '離れたくて出てきた。それだけだ',
+    source: '喫煙所の一服する人',
+  },
+  {
+    id: 'f-borrowed-fire',
+    text: '火は、誰かに借りないと点かない',
+    source: '喫煙所で借りた火',
+  },
+  {
     id: 'f-cannot-alone',
     text: '渡る先がないなら、それは橋ではない',
     source: '橋を渡る人',
