@@ -740,8 +740,16 @@ body {
   gap: 1.6rem;
 }
 
+/*
+ * 戸の名と、そこでしたこと。折り返しても動詞が名にぶら下がって見えるよう、
+ * 縦は上端で揃える（中央だと、名が二行になった戸だけ動詞が沈んで見える）。
+ */
 .trace-gate {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8em;
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   color: var(--ink-dim);
@@ -757,8 +765,8 @@ body {
 }
 
 /*
- * 突きつけられた二枚は沈め、置いた一枚だけに灯を残す。
- * 何を選んだかは色で分かるようにして、言葉では断じない。
+ * 置かなかったものは沈め、置いた一枚だけに灯を残す。
+ * 何を選んだかは色と並びで分かるようにして、言葉では断じない。
  */
 .trace-card {
   margin: 0;
@@ -774,8 +782,16 @@ body {
   border-left-color: var(--lamp-dim);
 }
 
+/* 戸の名の隣に並ぶ、そこでしたこと。名より沈めて、見出しの主が入れ替わらないようにする */
 .trace-verb {
-  margin: 0.6rem 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: #5c636d;
+}
+
+/* 置いた一枚と、置かなかったものの境。ここも数えず、断じない */
+.trace-left {
+  margin: 0.9rem 0 0.35rem;
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   color: #5c636d;
