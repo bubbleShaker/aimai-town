@@ -27,34 +27,29 @@ export function TraceView({ traces, closing, onRestart }: Props) {
       <h2 className="trace-title">置いてきたもの</h2>
       <div className="trace-body">
         <ul className="trace-list">
-          {traces.map((t) => {
-            /*
-             * 置かなかったもの。突きつけられた二枚から、置いた一枚を除いたぶんだけ出す。
-             * 間に架けた戸では二枚、そのまま置いた戸では一枚が残る。
-             * 除かずに二枚とも出すと、そのまま置いた戸で同じ言葉が二度並ぶ。
-             */
-            const left = t.tension.filter((f) => f.id !== t.offered.id);
-            return (
-              <li key={t.gate.id} className="trace-item">
-                <p className="trace-gate">
-                  {t.gate.name}
-                  <span className="trace-verb">
-                    {t.bridged ? 'あいだに置いた' : 'そのまま置いた'}
-                  </span>
-                </p>
-                {/* したことの次に、置いた一枚。架けた戸でもそうでない戸でも同じ位置に来る */}
-                <p className="trace-card is-placed">「{t.offered.text}」</p>
-                <p className="trace-left">置かなかった</p>
-                <ul className="trace-tension">
-                  {left.map((f) => (
-                    <li key={f.id} className="trace-card">
-                      「{f.text}」
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            );
-          })}
+          {traces.map((t) => (
+            <li key={t.gate.id} className="trace-item">
+              <p className="trace-gate">
+                {t.gate.name}
+                <span className="trace-verb">{t.bridged ? 'あいだに置いた' : 'そのまま置いた'}</span>
+              </p>
+              {/* したことの次に、置いた一枚。架けた戸でもそうでない戸でも同じ位置に来る */}
+              <p className="trace-card is-placed">「{t.offered.text}」</p>
+              {/* 置かなかったぶんは engine が数えている。UI では引き算しない */}
+              {t.unplaced.length > 0 && (
+                <>
+                  <p className="trace-unplaced">置かなかった</p>
+                  <ul className="trace-unplaced-list">
+                    {t.unplaced.map((f) => (
+                      <li key={f.id} className="trace-card">
+                        「{f.text}」
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </li>
+          ))}
         </ul>
         {closing.map((line, i) => (
           <p key={i} className="trace-closing">

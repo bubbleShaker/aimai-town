@@ -251,11 +251,15 @@ export function trace(world: World, state: GameState): GateTrace[] {
     const gate = findGate(world, choice.gateId);
     const offered = findFragment(world, choice.fragmentId);
     if (!gate || !offered) return [];
+    const tension = gateTension(world, gate);
     return [
       {
         gate: { id: gate.id, name: gate.name },
-        tension: gateTension(world, gate),
+        tension,
         offered,
+        // 突きつけられた二枚のうち、置かなかったぶん。
+        // 「何を置かなかったか」も記録の読みなので、UI で引き算させずここで出す
+        unplaced: tension.filter((f) => f.id !== offered.id),
         // 突きつけられた二枚のどちらでもない一枚を置いたなら、間に橋を架けたことになる
         bridged: !gate.tension.includes(offered.id),
       },
@@ -280,6 +284,8 @@ export interface GateTrace {
   tension: Fragment[];
   /** 実際に置いた一枚 */
   offered: Fragment;
+  /** 突きつけられた二枚のうち、置かなかったぶん。架けた戸なら二枚、そのまま置いた戸なら一枚 */
+  unplaced: Fragment[];
   /** 間に第三の一枚を架けたか。偽なら、突きつけられた片方をそのまま置いた */
   bridged: boolean;
 }
