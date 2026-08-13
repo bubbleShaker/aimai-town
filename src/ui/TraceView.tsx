@@ -12,8 +12,12 @@ interface Props {
  * 灯の名のあとに残る、戸の前でしたことの一覧。
  *
  * ここでも評価はしない。軸の値も、何番目のエンドかも、正しさの示唆も出さない。
- * 並べるのは「突きつけられた二枚」と「置いた一枚」だけで、
+ * 並べるのは「置いた一枚」と「置かなかったもの」だけで、
  * それをどう読むかはプレイヤーの側に残す。
+ *
+ * 戸ごとに、したこと（動詞）と置いた一枚を先に出す。
+ * 置いた一枚を末尾に置くと、間に架けた戸では三行目まで読まないと何をしたか分からず、
+ * 戸が増えるほど読み流される。並べ替えるだけで、言葉は足さない。
  *
  * 戸が増えても「もう一度」に手が届くよう、スクロールは本文の中だけに閉じる。
  */
@@ -25,25 +29,24 @@ export function TraceView({ traces, closing, onRestart }: Props) {
         <ul className="trace-list">
           {traces.map((t) => (
             <li key={t.gate.id} className="trace-item">
-              <p className="trace-gate">{t.gate.name}</p>
-              <ul className="trace-tension">
-                {t.tension.map((f) => (
-                  <li
-                    key={f.id}
-                    /* 二枚のうちの一枚をそのまま置いた戸では、その一枚に灯が残る */
-                    className={f.id === t.offered.id ? 'trace-card is-placed' : 'trace-card'}
-                  >
-                    「{f.text}」
-                  </li>
-                ))}
-              </ul>
-              {t.bridged ? (
+              <p className="trace-gate">
+                {t.gate.name}
+                <span className="trace-verb">{t.bridged ? 'あいだに置いた' : 'そのまま置いた'}</span>
+              </p>
+              {/* したことの次に、置いた一枚。架けた戸でもそうでない戸でも同じ位置に来る */}
+              <p className="trace-card is-placed">「{t.offered.text}」</p>
+              {/* 置かなかったぶんは engine が数えている。UI では引き算しない */}
+              {t.unplaced.length > 0 && (
                 <>
-                  <p className="trace-verb">あいだに置いた</p>
-                  <p className="trace-card is-placed">「{t.offered.text}」</p>
+                  <p className="trace-unplaced">置かなかった</p>
+                  <ul className="trace-unplaced-list">
+                    {t.unplaced.map((f) => (
+                      <li key={f.id} className="trace-card">
+                        「{f.text}」
+                      </li>
+                    ))}
+                  </ul>
                 </>
-              ) : (
-                <p className="trace-verb">二枚のうちの一枚を、そのまま置いた</p>
               )}
             </li>
           ))}

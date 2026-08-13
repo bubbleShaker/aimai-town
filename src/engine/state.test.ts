@@ -374,6 +374,30 @@ describe('軌跡', () => {
     expect(walked?.bridged).toBe(false);
   });
 
+  /*
+   * 置かなかったぶんは engine が数える。画面で「二枚から置いた一枚を引く」をやらせない。
+   * 引き算を UI に置くと、置いた一枚が二度並ぶ／何も無い見出しが立つ経路が UI 側にできる。
+   */
+  it('そのまま置いた戸に残るのは、置かなかった一枚だけ', () => {
+    const gate = world.gates[0];
+    const s = playThrough({ [gate.id]: gate.tension[0] });
+    const walked = trace(world, s).find((t) => t.gate.id === gate.id);
+    expect(walked?.unplaced.map((f) => f.id)).toEqual([gate.tension[1]]);
+  });
+
+  it('間に架けた戸には、突きつけられた二枚がそのまま残る', () => {
+    const s = playThrough({ 'g-work': 'f-approval' });
+    const work = trace(world, s).find((t) => t.gate.id === 'g-work');
+    expect(work?.unplaced.map((f) => f.id)).toEqual(findGate(world, 'g-work')!.tension);
+  });
+
+  it('置かなかったものに、置いた一枚は混ざらない', () => {
+    for (const t of trace(world, playThrough())) {
+      expect(t.unplaced.map((f) => f.id)).not.toContain(t.offered.id);
+      expect(t.unplaced.length).toBe(t.bridged ? 2 : 1);
+    }
+  });
+
   it('二枚のどちらでもない一枚を置いた戸は、架けたことになる', () => {
     const s = playThrough({ 'g-work': 'f-approval' });
     const work = trace(world, s).find((t) => t.gate.id === 'g-work');
